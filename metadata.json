@@ -1,0 +1,7 @@
+{
+  "name": "Vigadi - Smart Meal Planner",
+  "description": "A smart meal suggestion app that generates balanced, Tamil Nadu-style menus based on available ingredients, diet preferences, and regional flavors.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
