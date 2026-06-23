@@ -25,7 +25,7 @@ dotenv.config({ path: ".env.local" });
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Robust helper to dry-clean the response text before passing to JSON.parse
 function cleanAndParseJson(text: string): any {
@@ -946,10 +946,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Serve build artifacts in production Mode
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    const distPath = path.join(process.cwd(), "dist", "client");
+    app.use(express.static(distPath, { index: false }));
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api")) return next();
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
