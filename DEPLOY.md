@@ -61,12 +61,16 @@ Render runs the included `Dockerfile` and mounts a persistent disk for your dish
 
 1. Go to [railway.app](https://railway.app) → **New Project → Deploy from GitHub**
 2. Select the `vigadi` repo
-3. Railway detects the `Dockerfile`
+3. Railway reads `railway.toml` and builds with the **Dockerfile**
 4. Add variables:
    - `GEMINI_API_KEY`
    - `NODE_ENV` = `production`
+   - `APP_URL` = your Railway public URL (e.g. `https://vigadi-production-xxxx.up.railway.app`)
 5. Add a **Volume** mounted at `/app/data` (1 GB) so SQLite persists
-6. Deploy
+6. **Settings → Networking → Generate Domain**
+7. Deploy
+
+> **Note:** `NODE_ENV=production` is required at runtime. The Dockerfile forces `NODE_ENV=development` during the build so dev tools (`vite`, `vite-plugin-pwa`, `esbuild`) install correctly. If build fails with `Cannot find package 'vite-plugin-pwa'`, confirm **Builder = Dockerfile** in Settings.
 
 ---
 

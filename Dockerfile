@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
+
+# Railway sets NODE_ENV=production globally — force devDependencies for the build step
+ENV NODE_ENV=development
 RUN npm ci
 
 COPY . .
