@@ -720,7 +720,7 @@ Provide the response as a single valid JSON object adhering precisely to this sc
 
 // --- Phase A: Ingredient → YouTube dish catalog ---
 app.post("/api/catalog/discover", async (req, res) => {
-  const { ingredients, userId, username } = req.body;
+  const { ingredients, userId, username, forceRefresh } = req.body;
   if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
     return res.status(400).json({ error: "Provide an array of ingredients." });
   }
@@ -729,7 +729,9 @@ app.post("/api/catalog/discover", async (req, res) => {
   ensureUserProfile(uid, username || "Guest");
 
   try {
-    const discovered = await discoverAndStoreIngredients(ingredients);
+    const { results, cacheHits, freshDiscoveries } = await discoverAndStoreIngredients(ingredients, {
+      forceRefresh: !!forceRefresh,
+    });
     const grouped = getDishesGroupedByIngredient(ingredients);
     const catalog = Object.fromEntries(
       Object.entries(grouped).map(([ing, rows]) => [ing, rows.map(parseDishRow)])
@@ -737,9 +739,12 @@ app.post("/api/catalog/discover", async (req, res) => {
 
     res.json({
       status: "success",
-      discovered,
+      discovered: results,
       catalog,
       totalDishes: Object.values(catalog).reduce((sum, arr) => sum + arr.length, 0),
+      cacheHits,
+      freshDiscoveries,
+      fromCache: cacheHits.length > 0 && freshDiscoveries.length === 0,
     });
   } catch (error: any) {
     console.error("Catalog discovery failed:", error);

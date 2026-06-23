@@ -190,6 +190,37 @@ export function getDishesGroupedByIngredient(names: string[]): Record<string, Di
   return grouped;
 }
 
+export const MIN_CACHED_DISHES = 5;
+
+export function getDishCountForIngredient(ingredientName: string): number {
+  const normalized = normalizeIngredient(ingredientName);
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) as count FROM dishes d
+       JOIN ingredients i ON d.ingredient_id = i.id
+       WHERE i.normalized_name = ?`
+    )
+    .get(normalized) as { count: number };
+  return row?.count ?? 0;
+}
+
+export function hasSufficientCachedDishes(ingredientName: string, min = MIN_CACHED_DISHES): boolean {
+  return getDishCountForIngredient(ingredientName) >= min;
+}
+
+export function getDishesForIngredient(ingredientName: string): DishRow[] {
+  const normalized = normalizeIngredient(ingredientName);
+  return db
+    .prepare(
+      `SELECT d.*, i.name as ingredient_name
+       FROM dishes d
+       JOIN ingredients i ON d.ingredient_id = i.id
+       WHERE i.normalized_name = ?
+       ORDER BY d.name`
+    )
+    .all(normalized) as DishRow[];
+}
+
 export function getDishById(id: number): DishRow | undefined {
   return db
     .prepare(
