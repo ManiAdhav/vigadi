@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { insertDish, upsertIngredient } from "./db";
+import { GEMINI_MODEL } from "./geminiConfig";
 import { cleanAndParseJson, extractYouTubeVideoId } from "./jsonUtils";
 
 let aiClient: GoogleGenAI | null = null;
@@ -96,7 +97,7 @@ Return ONLY valid JSON:
 
   try {
     const response = await client.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: GEMINI_MODEL,
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],

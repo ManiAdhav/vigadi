@@ -5,6 +5,7 @@ import {
   parseDishRow,
   TasteProfile,
 } from "./db";
+import { GEMINI_MODEL } from "./geminiConfig";
 import { getGeminiClient } from "./discovery";
 import { cleanAndParseJson } from "./jsonUtils";
 
@@ -262,7 +263,7 @@ Return JSON:
 }`;
 
   const response = await client.models.generateContent({
-    model: "gemini-2.5-flash",
+    model: GEMINI_MODEL,
     contents: prompt,
     config: { responseMimeType: "application/json" },
   });

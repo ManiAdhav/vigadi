@@ -14,12 +14,14 @@ import {
 } from "./server/db";
 import { discoverAndStoreIngredients } from "./server/discovery";
 import { buildCombosFromCatalog, combosToMeals } from "./server/comboBuilder";
+import { GEMINI_MODEL } from "./server/geminiConfig";
 import {
   getTasteSummary,
   recordComboSelection,
   recordDishFeedback,
 } from "./server/tasteEngine";
 
+dotenv.config({ path: ".env.local" });
 dotenv.config();
 
 const app = express();
@@ -654,7 +656,7 @@ Provide the response as a single valid JSON object adhering precisely to this sc
 }`;
 
     const response = await client.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: GEMINI_MODEL,
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -914,7 +916,7 @@ Respond strictly in JSON format using this exact schema:
     };
 
     const response = await client.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: GEMINI_MODEL,
       contents: { parts: [imagePart, textPart] },
       config: {
         responseMimeType: "application/json"
