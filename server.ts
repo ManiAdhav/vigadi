@@ -14,16 +14,18 @@ import {
 } from "./server/db";
 import { discoverAndStoreIngredients } from "./server/discovery";
 import { buildCombosFromCatalog, combosToMeals } from "./server/comboBuilder";
+import { GEMINI_MODEL } from "./server/geminiConfig";
 import {
   getTasteSummary,
   recordComboSelection,
   recordDishFeedback,
 } from "./server/tasteEngine";
 
+dotenv.config({ path: ".env.local" });
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Robust helper to dry-clean the response text before passing to JSON.parse
 function cleanAndParseJson(text: string): any {
@@ -654,7 +656,7 @@ Provide the response as a single valid JSON object adhering precisely to this sc
 }`;
 
     const response = await client.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: GEMINI_MODEL,
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -718,7 +720,7 @@ Provide the response as a single valid JSON object adhering precisely to this sc
 
 // --- Phase A: Ingredient → YouTube dish catalog ---
 app.post("/api/catalog/discover", async (req, res) => {
-  const { ingredients, userId, username } = req.body;
+  const { ingredients, userId, username, forceRefresh } = req.body;
   if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
     return res.status(400).json({ error: "Provide an array of ingredients." });
   }
@@ -727,7 +729,9 @@ app.post("/api/catalog/discover", async (req, res) => {
   ensureUserProfile(uid, username || "Guest");
 
   try {
-    const discovered = await discoverAndStoreIngredients(ingredients);
+    const { results, cacheHits, freshDiscoveries } = await discoverAndStoreIngredients(ingredients, {
+      forceRefresh: !!forceRefresh,
+    });
     const grouped = getDishesGroupedByIngredient(ingredients);
     const catalog = Object.fromEntries(
       Object.entries(grouped).map(([ing, rows]) => [ing, rows.map(parseDishRow)])
@@ -735,9 +739,12 @@ app.post("/api/catalog/discover", async (req, res) => {
 
     res.json({
       status: "success",
-      discovered,
+      discovered: results,
       catalog,
       totalDishes: Object.values(catalog).reduce((sum, arr) => sum + arr.length, 0),
+      cacheHits,
+      freshDiscoveries,
+      fromCache: cacheHits.length > 0 && freshDiscoveries.length === 0,
     });
   } catch (error: any) {
     console.error("Catalog discovery failed:", error);
@@ -914,7 +921,7 @@ Respond strictly in JSON format using this exact schema:
     };
 
     const response = await client.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: GEMINI_MODEL,
       contents: { parts: [imagePart, textPart] },
       config: {
         responseMimeType: "application/json"
@@ -939,10 +946,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Serve build artifacts in production Mode
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    const distPath = path.join(process.cwd(), "dist", "client");
+    app.use(express.static(distPath, { index: false }));
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api")) return next();
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

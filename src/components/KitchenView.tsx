@@ -10,6 +10,7 @@ import {
   ThumbsUp,
   CheckCircle2,
   Database,
+  RefreshCw,
 } from "lucide-react";
 import { BuiltComboOption, CatalogDish, Meal } from "../types";
 
@@ -60,11 +61,53 @@ export default function KitchenView({ meals, onSelectMeal, onSelectCreatedMeals 
   const [selectedComboId, setSelectedComboId] = useState<string | null>(null);
   const [tasteSummaries, setTasteSummaries] = useState<string[]>([]);
   const [expandedIngredient, setExpandedIngredient] = useState<string | null>(null);
+  const [discoveryStatus, setDiscoveryStatus] = useState<string | null>(null);
 
   const activeTags = tags.filter((t) => t.toLowerCase() !== "rice");
 
+  const applyCatalogResponse = (data: {
+    catalog?: Record<string, CatalogDish[]>;
+    totalDishes?: number;
+    cacheHits?: string[];
+    freshDiscoveries?: string[];
+    fromCache?: boolean;
+  }) => {
+    setCatalog(data.catalog || {});
+    setCatalogTotal(data.totalDishes || 0);
+    const hits = data.cacheHits || [];
+    const fresh = data.freshDiscoveries || [];
+    if (hits.length > 0 && fresh.length === 0) {
+      setDiscoveryStatus(`Loaded instantly from local catalog (${hits.join(", ")})`);
+    } else if (hits.length > 0 && fresh.length > 0) {
+      setDiscoveryStatus(`Cached: ${hits.join(", ")} · Fetched from YouTube: ${fresh.join(", ")}`);
+    } else if (fresh.length > 0) {
+      setDiscoveryStatus(`Discovered on YouTube: ${fresh.join(", ")}`);
+    } else if ((data.totalDishes || 0) > 0) {
+      setDiscoveryStatus("Loaded from local catalog");
+    }
+    const firstIng = Object.keys(data.catalog || {})[0];
+    if (firstIng) setExpandedIngredient(firstIng);
+  };
+
+  const loadCatalogFromDb = async (ingredientList: string[]) => {
+    if (ingredientList.length === 0) return;
+    try {
+      const res = await fetch(
+        `/api/catalog/dishes?ingredients=${encodeURIComponent(ingredientList.join(","))}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if ((data.totalDishes || 0) > 0) {
+        applyCatalogResponse({ ...data, fromCache: true });
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
   useEffect(() => {
     fetchTasteProfile();
+    loadCatalogFromDb(activeTags);
   }, []);
 
   const fetchTasteProfile = async () => {
@@ -90,9 +133,10 @@ export default function KitchenView({ meals, onSelectMeal, onSelectCreatedMeals 
 
   const handleRemoveTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
 
-  const handleDiscoverDishes = async () => {
+  const handleDiscoverDishes = async (forceRefresh = false) => {
     setIsDiscovering(true);
     setDiscoveryError(null);
+    if (forceRefresh) setDiscoveryStatus(null);
     setBuiltCombos([]);
     setSelectedComboId(null);
     try {
@@ -103,14 +147,12 @@ export default function KitchenView({ meals, onSelectMeal, onSelectCreatedMeals 
           ingredients: activeTags,
           userId: getUserId(),
           username: getUsername(),
+          forceRefresh,
         }),
       });
       if (!res.ok) throw new Error("Discovery failed. Check server connection.");
       const data = await res.json();
-      setCatalog(data.catalog || {});
-      setCatalogTotal(data.totalDishes || 0);
-      const firstIng = Object.keys(data.catalog || {})[0];
-      if (firstIng) setExpandedIngredient(firstIng);
+      applyCatalogResponse(data);
     } catch (err: any) {
       setDiscoveryError(err.message || "Could not discover YouTube dishes.");
     } finally {
@@ -286,30 +328,48 @@ export default function KitchenView({ meals, onSelectMeal, onSelectCreatedMeals 
           Discover dishes on YouTube
         </h3>
         <p className="text-[11px] text-espresso/60 leading-relaxed">
-          Finds 5–10 real dishes per ingredient, saves them to the database with spice level, type (fry/sambar/curry), and what they pair with.
+          Checks local DB first (5+ dishes per ingredient). Only calls YouTube/Gemini for missing ingredients.
         </p>
+
+        {discoveryStatus && (
+          <div className="bg-[#2E9D70]/10 border border-[#2E9D70]/30 text-[11px] text-espresso p-3 rounded-xl font-medium">
+            {discoveryStatus}
+          </div>
+        )}
 
         {discoveryError && (
           <div className="bg-red-50 border border-red-200 text-xs text-red-700 p-3 rounded-xl">{discoveryError}</div>
         )}
 
-        <button
-          onClick={handleDiscoverDishes}
-          disabled={isDiscovering || activeTags.length === 0}
-          className="w-full bg-[#2E9D70] hover:bg-[#208359] text-white py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-        >
-          {isDiscovering ? (
-            <>
-              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Searching YouTube & saving to database...
-            </>
-          ) : (
-            <>
-              <Search className="w-4 h-4" />
-              Discover dishes for {activeTags.length} ingredients
-            </>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleDiscoverDishes(false)}
+            disabled={isDiscovering || activeTags.length === 0}
+            className="flex-1 bg-[#2E9D70] hover:bg-[#208359] text-white py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+          >
+            {isDiscovering ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Checking catalog...
+              </>
+            ) : (
+              <>
+                <Search className="w-4 h-4" />
+                Discover dishes
+              </>
+            )}
+          </button>
+          {catalogTotal > 0 && (
+            <button
+              onClick={() => handleDiscoverDishes(true)}
+              disabled={isDiscovering}
+              title="Force refresh from YouTube"
+              className="bg-cream border border-matcha text-espresso px-3 rounded-xl hover:bg-matcha/20 disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
           )}
-        </button>
+        </div>
 
         {catalogTotal > 0 && (
           <div className="flex items-center gap-2 text-[10px] font-mono text-[#2E9D70] font-bold">

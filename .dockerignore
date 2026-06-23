@@ -1,0 +1,12 @@
+node_modules
+dist
+data
+.env*
+!.env.example
+.git
+.gitignore
+README.md
+DEPLOY.md
+*.md
+.cursor
+terminals

@@ -10,16 +10,22 @@ View your app in AI Studio: https://ai.studio/apps/32bbba00-d4f5-4842-aecb-e0bc7
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:** Node.js 20+
 
+1. Install dependencies: `npm install`
+2. Copy `.env.example` → `.env.local` and set `GEMINI_API_KEY`
+3. Dev server: `npm run dev` → http://localhost:3000
+4. Production preview: `npm run preview`
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key (enables real YouTube dish discovery via Google Search grounding; without it, offline templates are used)
-3. Run the app:
-   `npm run dev`
+## Publish as a PWA
 
-## Kitchen Pipeline (v2)
+See **[DEPLOY.md](./DEPLOY.md)** for full hosting guides (Render, Railway, Fly.io, Cloud Run, VPS).
+
+Quick path: deploy with Docker on **Railway** or **Render** + set `GEMINI_API_KEY`.
+
+After HTTPS deploy, users can **Install app** (Android/Desktop) or **Add to Home Screen** (iPhone).
+
+## Kitchen Pipeline
 
 1. **Discover** — `POST /api/catalog/discover` with ingredients → finds 5–10 YouTube dishes per ingredient and saves to SQLite (`data/vigadi.db`)
 2. **Build** — `POST /api/combos/build` with ingredients + combo rules → assembles 2 full meal combos from the catalog
