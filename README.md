@@ -21,7 +21,7 @@ View your app in AI Studio: https://ai.studio/apps/32bbba00-d4f5-4842-aecb-e0bc7
 
 See **[DEPLOY.md](./DEPLOY.md)** for full hosting guides (Render, Railway, Fly.io, Cloud Run, VPS).
 
-Quick path: deploy with Docker on **Render** using the included `render.yaml` + set `GEMINI_API_KEY`.
+Quick path: deploy with Docker on **Railway** or **Render** + set `GEMINI_API_KEY`.
 
 After HTTPS deploy, users can **Install app** (Android/Desktop) or **Add to Home Screen** (iPhone).
 
