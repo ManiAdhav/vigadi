@@ -1,8 +1,24 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import {
+  ensureUserProfile,
+  getDishesGroupedByIngredient,
+  getFeedbackForUser,
+  getUserProfile,
+  insertCombo,
+  parseDishRow,
+  updateUserComboRules,
+} from "./server/db";
+import { discoverAndStoreIngredients } from "./server/discovery";
+import { buildCombosFromCatalog, combosToMeals } from "./server/comboBuilder";
+import {
+  getTasteSummary,
+  recordComboSelection,
+  recordDishFeedback,
+} from "./server/tasteEngine";
 
 dotenv.config();
 
@@ -698,6 +714,144 @@ Provide the response as a single valid JSON object adhering precisely to this sc
     console.error("Gemini combination generation failed in Engine 3:", error);
     res.status(500).json({ error: "Gemini AI failed to process ingredients. Please check configuration." });
   }
+});
+
+// --- Phase A: Ingredient → YouTube dish catalog ---
+app.post("/api/catalog/discover", async (req, res) => {
+  const { ingredients, userId, username } = req.body;
+  if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
+    return res.status(400).json({ error: "Provide an array of ingredients." });
+  }
+
+  const uid = userId || "default-user";
+  ensureUserProfile(uid, username || "Guest");
+
+  try {
+    const discovered = await discoverAndStoreIngredients(ingredients);
+    const grouped = getDishesGroupedByIngredient(ingredients);
+    const catalog = Object.fromEntries(
+      Object.entries(grouped).map(([ing, rows]) => [ing, rows.map(parseDishRow)])
+    );
+
+    res.json({
+      status: "success",
+      discovered,
+      catalog,
+      totalDishes: Object.values(catalog).reduce((sum, arr) => sum + arr.length, 0),
+    });
+  } catch (error: any) {
+    console.error("Catalog discovery failed:", error);
+    res.status(500).json({ error: "Failed to discover dishes from YouTube catalog." });
+  }
+});
+
+app.get("/api/catalog/dishes", (req, res) => {
+  const raw = req.query.ingredients;
+  const ingredients =
+    typeof raw === "string" ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+  const grouped = getDishesGroupedByIngredient(ingredients);
+  const catalog = Object.fromEntries(
+    Object.entries(grouped).map(([ing, rows]) => [ing, rows.map(parseDishRow)])
+  );
+  res.json({ catalog, totalDishes: Object.values(catalog).reduce((sum, arr) => sum + arr.length, 0) });
+});
+
+// --- Phase B: Build 2 combos from catalog + user rules ---
+app.post("/api/combos/build", async (req, res) => {
+  const { ingredients, rules, category, userId, username } = req.body;
+  if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
+    return res.status(400).json({ error: "Provide ingredients to build combos." });
+  }
+
+  const uid = userId || "default-user";
+  const activeRules = rules || "Tamil Nadu rules: 1 Kulambu, 2 Sides";
+  ensureUserProfile(uid, username || "Guest");
+  updateUserComboRules(uid, activeRules);
+
+  try {
+    const built = await buildCombosFromCatalog({
+      userId: uid,
+      ingredients,
+      rules: activeRules,
+      category: category || "Lunch",
+    });
+
+    if (built.length === 0) {
+      return res.status(404).json({
+        error: "No dishes in catalog for these ingredients. Run Discover Dishes first.",
+      });
+    }
+
+    built.forEach((combo) => {
+      insertCombo({
+        id: combo.id,
+        userId: uid,
+        name: combo.name,
+        dishIds: combo.dishIds,
+        subComponents: combo.subComponents,
+        category: category || "Lunch",
+      });
+    });
+
+    const meals = combosToMeals(built, category || "Lunch");
+    meals.forEach((meal) => INITIAL_MEALS.unshift(meal as any));
+
+    res.json({ combos: built, meals });
+  } catch (error: any) {
+    console.error("Combo build failed:", error);
+    res.status(500).json({ error: "Failed to build meal combos from catalog." });
+  }
+});
+
+// --- Phase C: User picks combo + taste learning ---
+app.post("/api/combos/select", (req, res) => {
+  const { userId, username, selectedComboId, selectedDishIds, rejectedComboId, rejectedDishIds, comboName } =
+    req.body;
+
+  if (!selectedComboId || !selectedDishIds) {
+    return res.status(400).json({ error: "Missing selected combo details." });
+  }
+
+  const uid = userId || "default-user";
+  const taste = recordComboSelection({
+    userId: uid,
+    username: username || "Guest",
+    comboId: selectedComboId,
+    comboName: comboName || "Selected plate",
+    dishIds: selectedDishIds,
+    rejectedComboId,
+    rejectedDishIds,
+  });
+
+  res.json({ status: "success", tasteProfile: taste });
+});
+
+app.post("/api/feedback/dish", (req, res) => {
+  const { userId, username, dishId, thumb, notes } = req.body;
+  if (!dishId || !thumb) {
+    return res.status(400).json({ error: "dishId and thumb required." });
+  }
+
+  const taste = recordDishFeedback({
+    userId: userId || "default-user",
+    username: username || "Guest",
+    dishId: Number(dishId),
+    thumb: thumb === "down" ? "down" : "up",
+    notes,
+  });
+
+  res.json({ status: "success", tasteProfile: taste });
+});
+
+app.get("/api/taste/:userId", (req, res) => {
+  const summary = getTasteSummary(req.params.userId || "default-user");
+  res.json(summary);
+});
+
+app.get("/api/user/:userId", (req, res) => {
+  const profile = getUserProfile(req.params.userId || "default-user");
+  const feedback = getFeedbackForUser(req.params.userId || "default-user");
+  res.json({ profile, feedback });
 });
 
 // 7. API: Photo-first parsing logging (Vision AI)

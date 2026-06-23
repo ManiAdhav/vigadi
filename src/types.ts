@@ -5,6 +5,32 @@ export interface Macros {
   calories: number;
 }
 
+export interface CatalogDish {
+  id: number;
+  ingredientName?: string;
+  name: string;
+  youtubeUrl: string | null;
+  youtubeVideoId: string | null;
+  dishType: string | null;
+  spiceLevel: string | null;
+  mainIngredients: string[];
+  pairsWith: string[];
+  description: string | null;
+  channelName: string | null;
+  discoveredAt?: string;
+  source?: string;
+}
+
+export interface BuiltComboOption {
+  id: string;
+  name: string;
+  dishIds: number[];
+  subComponents: string[];
+  dishes: CatalogDish[];
+  staple: string;
+  rationale: string;
+}
+
 export interface Meal {
   id: string;
   recipeName: string;
