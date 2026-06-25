@@ -1,0 +1,42 @@
+---
+description: Superpowers bootstrap — replaces the local sessionStart hook for Cloud Agents
+alwaysApply: true
+---
+
+You have Superpowers. Repo skills live in `.cursor/skills/`. The `code-reviewer` subagent lives in `.cursor/agents/`.
+
+## Non-negotiable skill rule
+
+If there is even a 1% chance a skill applies, you MUST read and follow the matching `SKILL.md` under `.cursor/skills/` **before** any response or action — including clarifying questions.
+
+If a skill applies, you do not have a choice. Use it.
+
+## Priority
+
+1. User instructions (`AGENTS.md`, direct requests) — highest
+2. Superpowers skills — override default behavior where they conflict
+3. Default system prompt — lowest
+
+## Workflow
+
+1. On every user message, check whether any repo skill might apply.
+2. If yes, read that skill's `SKILL.md` immediately (start with `using-superpowers` when unsure).
+3. Announce which skill you are using and why.
+4. If the skill has a checklist, create todos and follow the skill exactly.
+
+## Skill priority when multiple apply
+
+1. Process skills first (brainstorming, systematic-debugging)
+2. Implementation skills second
+
+## Red flags (stop and check skills)
+
+- "This is just a simple question"
+- "I need more context first"
+- "Let me explore the codebase first"
+- "The skill is overkill"
+- "I'll just do this one thing first"
+
+## Available skills
+
+brainstorming, dispatching-parallel-agents, executing-plans, finishing-a-development-branch, receiving-code-review, requesting-code-review, subagent-driven-development, systematic-debugging, test-driven-development, using-git-worktrees, using-superpowers, verification-before-completion, writing-plans, writing-skills
