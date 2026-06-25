@@ -1,10 +1,9 @@
 import { buildIngredientSignature } from "./db/ingredientSignature";
 import { getPopularCombos } from "./db/globalCombos";
 import { getDishesByIds, getTasteProfile, getUserProfile, parseDishRow } from "./db";
-import { buildCombosFromCatalog, BuiltCombo, scoreDishForTaste } from "./comboBuilder";
+import { buildCombosFromCatalog, BuiltCombo, scoreDishForTaste, MIN_COMBOS, MAX_COMBOS } from "./comboBuilder";
 import { insertGenerationSession, insertComboCandidate } from "./db/events";
 
-const SLOTS_REQUESTED = 2;
 const MIN_TASTE_SCORE = -5;
 
 export async function buildCombosGlobalFirst(params: {
@@ -22,7 +21,7 @@ export async function buildCombosGlobalFirst(params: {
   const globalHits = await getPopularCombos({
     ingredientSignature: signature,
     cityCode,
-    limit: SLOTS_REQUESTED,
+    limit: MAX_COMBOS,
   });
 
   const globalCombos: BuiltCombo[] = [];
@@ -53,18 +52,30 @@ export async function buildCombosGlobalFirst(params: {
     });
   }
 
-  const slotsNeeded = SLOTS_REQUESTED - globalCombos.length;
-  let generated: BuiltCombo[] = [];
+  let combos = [...globalCombos];
 
-  if (slotsNeeded > 0) {
-    generated = await buildCombosFromCatalog({
+  if (combos.length < MAX_COMBOS) {
+    const generated = await buildCombosFromCatalog({
       ...params,
       excludeDishIds: [...usedDishIds],
-      maxCombos: slotsNeeded,
+      maxCombos: MAX_COMBOS - combos.length,
     });
+    for (const combo of generated) {
+      combo.dishIds.forEach((id) => usedDishIds.add(id));
+    }
+    combos.push(...generated);
   }
 
-  const combos = [...globalCombos, ...generated].slice(0, SLOTS_REQUESTED);
+  if (combos.length < MIN_COMBOS) {
+    const extra = await buildCombosFromCatalog({
+      ...params,
+      excludeDishIds: [],
+      maxCombos: MIN_COMBOS - combos.length,
+    });
+    combos.push(...extra);
+  }
+
+  combos = combos.slice(0, MAX_COMBOS);
 
   await insertGenerationSession({
     id: sessionId,
@@ -73,9 +84,9 @@ export async function buildCombosGlobalFirst(params: {
     ingredients: params.ingredients,
     comboRules: params.rules,
     category: params.category,
-    slotsRequested: SLOTS_REQUESTED,
+    slotsRequested: MAX_COMBOS,
     slotsFromGlobal: globalCombos.length,
-    slotsGenerated: generated.length,
+    slotsGenerated: combos.length - globalCombos.length,
   });
 
   for (let i = 0; i < combos.length; i++) {

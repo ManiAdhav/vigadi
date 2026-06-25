@@ -9,6 +9,9 @@ import { GEMINI_MODEL } from "./geminiConfig";
 import { getGeminiClient } from "./discovery";
 import { cleanAndParseJson } from "./jsonUtils";
 
+export const MIN_COMBOS = 3;
+export const MAX_COMBOS = 5;
+
 export interface BuiltCombo {
   id: string;
   name: string;
@@ -164,7 +167,7 @@ export async function buildCombosFromCatalog(params: {
   const { ingredients, rules, category } = params;
   const comboRules = parseComboRules(rules);
   const taste = await getTasteProfile(params.userId);
-  const maxCombos = params.maxCombos ?? 2;
+  const maxCombos = params.maxCombos ?? MAX_COMBOS;
   const excludeIds = new Set(params.excludeDishIds ?? []);
 
   const catalogDishes = (await getDishesByIngredientNames(ingredients)).filter(
@@ -183,6 +186,7 @@ export async function buildCombosFromCatalog(params: {
         taste,
         category,
         ingredients,
+        maxCombos,
       });
       return combos.slice(0, maxCombos);
     } catch (err) {
@@ -190,19 +194,20 @@ export async function buildCombosFromCatalog(params: {
     }
   }
 
-  return buildCombosRuleBased(catalogDishes, comboRules, taste, category).slice(0, maxCombos);
+  return buildCombosRuleBased(catalogDishes, comboRules, taste, category, maxCombos).slice(0, maxCombos);
 }
 
 function buildCombosRuleBased(
   catalogDishes: DishRow[],
   rules: ComboRules,
   taste: TasteProfile,
-  category: string
+  category: string,
+  maxCombos: number
 ): BuiltCombo[] {
   const usedIds = new Set<number>();
   const combos: BuiltCombo[] = [];
 
-  for (let variant = 0; variant < 2; variant++) {
+  for (let variant = 0; variant < maxCombos; variant++) {
     const picked = pickDishesForCombo(catalogDishes, rules, taste, usedIds, variant);
     picked.forEach((d) => usedIds.add(d.id));
 
@@ -230,6 +235,7 @@ async function buildCombosWithGemini(params: {
   taste: TasteProfile;
   category: string;
   ingredients: string[];
+  maxCombos: number;
 }): Promise<BuiltCombo[]> {
   const client = getGeminiClient()!;
   const dishCatalog = params.dishes.map((d) => ({
@@ -253,10 +259,10 @@ Meal slot: ${params.category}
 Combo rules: ${params.rules.description} (${params.rules.gravyCount} gravy/kulambu/sambar + ${params.rules.sideCount} sides)
 User taste profile: ${tasteHints}
 
-Build EXACTLY 2 different full meal combos. Each combo must:
+Build EXACTLY ${params.maxCombos} different full meal combos. Each combo must:
 - Follow the combo rules precisely
 - Use dishes ONLY from the catalog above (by id)
-- Use different dishes between combo 1 and combo 2 where possible
+- Use different dishes between combos where possible
 - Include Rice as staple
 - Respect user taste preferences (avoid disliked prep styles, prefer liked ones)
 
@@ -282,7 +288,7 @@ Return JSON:
   const parsed = cleanAndParseJson(response.text || '{"combos":[]}');
   const catalogMap = new Map(params.dishes.map((d) => [d.id, d]));
 
-  return (parsed?.combos ?? []).slice(0, 2).map((c: any, i: number) => {
+  return (parsed?.combos ?? []).slice(0, params.maxCombos).map((c: any, i: number) => {
     const dishIds: number[] = c.dishIds ?? [];
     const dishes = dishIds.map((id) => catalogMap.get(id)).filter(Boolean) as DishRow[];
     return {
