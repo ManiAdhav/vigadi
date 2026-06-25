@@ -18,7 +18,7 @@ find_plugin_root() {
   local cache_root="${HOME}/.cursor/plugins/cache/cursor-public"
   if [[ -d "$cache_root" ]]; then
     local match
-    match="$(find "$cache_root" -maxdepth 2 -path '*/skills/using-superpowers/SKILL.md' 2>/dev/null | head -1 || true)"
+    match="$(find "$cache_root" -maxdepth 5 -path '*/skills/using-superpowers/SKILL.md' 2>/dev/null | head -1 || true)"
     if [[ -n "$match" ]]; then
       dirname "$(dirname "$(dirname "$match")")"
       return 0
@@ -55,7 +55,7 @@ cat > "$MANIFEST" <<EOF
   "source": "cursor-marketplace-plugin",
   "syncedVersion": "$VERSION",
   "syncedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "sourcePath": "$PLUGIN_ROOT",
+  "sourcePath": "obra/superpowers via Cursor marketplace",
   "skills": [
     "brainstorming",
     "dispatching-parallel-agents",
