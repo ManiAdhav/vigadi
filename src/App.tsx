@@ -178,7 +178,6 @@ export default function App() {
 
           {activeTab === "kitchen" && (
             <KitchenView 
-              meals={meals} 
               onSelectMeal={handleSelectMeal} 
               onSelectCreatedMeals={handleSelectCreatedMeals}
             />

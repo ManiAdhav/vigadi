@@ -766,7 +766,7 @@ app.get("/api/catalog/dishes", async (req, res) => {
   res.json({ catalog, totalDishes: Object.values(catalog).reduce((sum, arr) => sum + arr.length, 0) });
 });
 
-// --- Phase B: Build 2 combos from catalog + user rules ---
+// --- Phase B: Build 3–5 combos from catalog + user rules ---
 app.post("/api/combos/build", async (req, res) => {
   const { ingredients, rules, category, userId, username } = req.body;
   if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
