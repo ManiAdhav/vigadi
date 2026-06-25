@@ -1,0 +1,25 @@
+{
+  "name": "superpowers",
+  "source": "cursor-marketplace-plugin",
+  "syncedVersion": "5.0.7",
+  "syncedAt": "2026-06-25T04:14:26Z",
+  "sourcePath": "obra/superpowers via Cursor marketplace",
+  "skills": [
+    "brainstorming",
+    "dispatching-parallel-agents",
+    "executing-plans",
+    "finishing-a-development-branch",
+    "receiving-code-review",
+    "requesting-code-review",
+    "subagent-driven-development",
+    "systematic-debugging",
+    "test-driven-development",
+    "using-git-worktrees",
+    "using-superpowers",
+    "verification-before-completion",
+    "writing-plans",
+    "writing-skills"
+  ],
+  "agents": ["code-reviewer"],
+  "notes": "Cloud Agents load repo skills from .cursor/skills/. The bootstrap rule in .cursor/rules/superpowers-bootstrap.mdc replaces the local sessionStart hook."
+}
