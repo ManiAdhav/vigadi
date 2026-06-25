@@ -64,14 +64,11 @@ export async function upsertIngredient(name: string): Promise<number> {
   if (!isDatabaseConfigured()) return memoryUpsertIngredient(name);
   const normalized = normalizeIngredient(name);
   const display = name.trim().charAt(0).toUpperCase() + name.trim().slice(1);
-  await query(
-    `INSERT INTO ingredients (name, normalized_name) VALUES ($1, $2)
-     ON CONFLICT (name) DO UPDATE SET normalized_name = EXCLUDED.normalized_name`,
-    [display, normalized]
-  );
   const result = await query<{ id: number }>(
-    `SELECT id FROM ingredients WHERE normalized_name = $1`,
-    [normalized]
+    `INSERT INTO ingredients (name, normalized_name) VALUES ($1, $2)
+     ON CONFLICT (normalized_name) DO UPDATE SET name = EXCLUDED.name
+     RETURNING id`,
+    [display, normalized]
   );
   return result.rows[0].id;
 }
