@@ -6,6 +6,10 @@ dotenv.config();
 
 let pool: pg.Pool | null = null;
 
+export function isDatabaseConfigured(): boolean {
+  return !!process.env.DATABASE_URL;
+}
+
 export function getPool(): pg.Pool {
   if (!pool) {
     const connectionString = process.env.DATABASE_URL;

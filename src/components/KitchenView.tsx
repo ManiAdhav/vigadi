@@ -151,7 +151,10 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
           forceRefresh,
         }),
       });
-      if (!res.ok) throw new Error("Discovery failed. Check server connection.");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Discovery failed. Check server connection.");
+      }
       const data = await res.json();
       applyCatalogResponse(data);
       if ((data.totalDishes || 0) > 0) {

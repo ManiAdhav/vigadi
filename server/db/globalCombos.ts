@@ -1,4 +1,4 @@
-import { query } from "./pool";
+import { query, isDatabaseConfigured } from "./pool";
 
 export interface GlobalComboRow {
   id: number;
@@ -37,6 +37,7 @@ export async function upsertGlobalCombo(params: {
   subComponents: string[];
   cityCode: string | null;
 }): Promise<number> {
+  if (!isDatabaseConfigured()) return 0;
   const sortedIds = [...params.dishIds].sort((a, b) => a - b);
   const cityKey = params.cityCode ?? "";
 
@@ -79,6 +80,7 @@ export async function getPopularCombos(params: {
   cityCode: string | null;
   limit: number;
 }): Promise<GlobalComboRow[]> {
+  if (!isDatabaseConfigured()) return [];
   const result = await query<{
     id: number;
     ingredient_signature: string;
@@ -107,6 +109,7 @@ export async function recordGlobalSelection(params: {
   subComponents: string[];
   cityCode: string | null;
 }): Promise<number> {
+  if (!isDatabaseConfigured()) return 0;
   const globalId = await upsertGlobalCombo({ ...params, cityCode: null });
   if (params.cityCode) {
     await upsertGlobalCombo({ ...params, cityCode: params.cityCode });
