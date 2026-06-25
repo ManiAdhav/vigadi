@@ -1,13 +1,18 @@
 import {
   ensureUserProfile,
   getDishById,
+  getDishesByIds,
   getTasteProfile,
+  getUserProfile,
   insertFeedback,
   saveTasteProfile,
   TasteProfile,
   updateComboStatus,
   DishRow,
 } from "./db";
+import { buildIngredientSignature } from "./db/ingredientSignature";
+import { recordGlobalSelection } from "./db/globalCombos";
+import { insertSelectionEvent, insertUserPreferredCombo } from "./db/events";
 
 function bumpCounter(record: Record<string, number>, key: string, amount = 1) {
   record[key] = (record[key] ?? 0) + amount;
@@ -81,6 +86,38 @@ export async function recordComboSelection(params: {
       metadata: { rejectedDishIds: params.rejectedDishIds },
     });
   }
+
+  const dishes = await getDishesByIds(params.dishIds);
+  const ingredientNames = [...new Set(dishes.map((d) => d.ingredient_name ?? "").filter(Boolean))];
+  const ingredientSignature = buildIngredientSignature(ingredientNames);
+
+  const profile = await getUserProfile(params.userId);
+  const globalComboId = await recordGlobalSelection({
+    ingredientSignature,
+    dishIds: params.dishIds,
+    comboName: params.comboName,
+    subComponents: [...dishes.map((d) => d.name), "Rice"],
+    cityCode: profile?.city_code ?? null,
+  });
+
+  await insertSelectionEvent({
+    id: `sel-${Date.now()}`,
+    userId: params.userId,
+    selectedComboId: params.comboId,
+    rejectedComboId: params.rejectedComboId,
+    dishIds: params.dishIds,
+    rejectedDishIds: params.rejectedDishIds,
+    globalComboId,
+  });
+
+  await insertUserPreferredCombo({
+    id: `pref-${Date.now()}`,
+    userId: params.userId,
+    globalComboId,
+    dishIds: params.dishIds,
+    name: params.comboName,
+    ingredientSignature,
+  });
 
   let taste = await getTasteProfile(params.userId);
   taste.liked_combos.push(params.comboName);

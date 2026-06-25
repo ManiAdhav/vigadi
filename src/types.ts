@@ -29,6 +29,8 @@ export interface BuiltComboOption {
   dishes: CatalogDish[];
   staple: string;
   rationale: string;
+  source?: "global_pool" | "gemini" | "rule_engine";
+  popularCount?: number;
 }
 
 export interface Meal {

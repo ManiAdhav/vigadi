@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { runMigrations } from "./server/db/migrate";
 import {
   ensureUserProfile,
   getDishesGroupedByIngredient,
@@ -11,9 +12,11 @@ import {
   insertCombo,
   parseDishRow,
   updateUserComboRules,
+  updateUserCity,
 } from "./server/db";
 import { discoverAndStoreIngredients } from "./server/discovery";
-import { buildCombosFromCatalog, combosToMeals } from "./server/comboBuilder";
+import { combosToMeals } from "./server/comboBuilder";
+import { buildCombosGlobalFirst } from "./server/globalComboService";
 import { GEMINI_MODEL } from "./server/geminiConfig";
 import {
   getTasteSummary,
@@ -776,7 +779,7 @@ app.post("/api/combos/build", async (req, res) => {
   await updateUserComboRules(uid, activeRules);
 
   try {
-    const built = await buildCombosFromCatalog({
+    const { combos: built, sessionId } = await buildCombosGlobalFirst({
       userId: uid,
       ingredients,
       rules: activeRules,
@@ -797,13 +800,15 @@ app.post("/api/combos/build", async (req, res) => {
         dishIds: combo.dishIds,
         subComponents: combo.subComponents,
         category: category || "Lunch",
+        source: combo.source,
+        globalComboId: combo.globalComboId,
       });
     }
 
     const meals = combosToMeals(built, category || "Lunch");
     meals.forEach((meal) => INITIAL_MEALS.unshift(meal as any));
 
-    res.json({ combos: built, meals });
+    res.json({ combos: built, meals, sessionId });
   } catch (error: any) {
     console.error("Combo build failed:", error);
     res.status(500).json({ error: "Failed to build meal combos from catalog." });
@@ -848,6 +853,16 @@ app.post("/api/feedback/dish", async (req, res) => {
   });
 
   res.json({ status: "success", tasteProfile: taste });
+});
+
+app.patch("/api/profile/:userId", async (req, res) => {
+  const { username, cityCode, comboRules } = req.body;
+  const uid = req.params.userId;
+  if (username) await ensureUserProfile(uid, username);
+  if (cityCode !== undefined) await updateUserCity(uid, cityCode || null);
+  if (comboRules) await updateUserComboRules(uid, comboRules);
+  const profile = await getUserProfile(uid);
+  res.json({ profile });
 });
 
 app.get("/api/taste/:userId", async (req, res) => {
@@ -952,6 +967,16 @@ async function startServer() {
       if (req.path.startsWith("/api")) return next();
       res.sendFile(path.join(distPath, "index.html"));
     });
+  }
+
+  if (process.env.DATABASE_URL) {
+    try {
+      await runMigrations();
+    } catch (err) {
+      console.error("[Vigadi] Database migration failed:", err);
+    }
+  } else {
+    console.warn("[Vigadi] DATABASE_URL not set — Postgres features unavailable.");
   }
 
   app.listen(PORT, "0.0.0.0", () => {

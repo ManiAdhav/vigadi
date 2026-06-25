@@ -27,8 +27,8 @@ After HTTPS deploy, users can **Install app** (Android/Desktop) or **Add to Home
 
 ## Kitchen Pipeline
 
-1. **Discover** — `POST /api/catalog/discover` with ingredients → finds 5–10 YouTube dishes per ingredient and saves to SQLite (`data/vigadi.db`)
-2. **Build** — `POST /api/combos/build` with ingredients + combo rules → assembles 2 full meal combos from the catalog
-3. **Select** — `POST /api/combos/select` when user picks a combo → updates per-user taste profile for future suggestions
+1. **Discover** — `POST /api/catalog/discover` with ingredients → finds 5–10 YouTube dishes per ingredient and saves to Postgres
+2. **Build** — `POST /api/combos/build` with ingredients + combo rules → pulls popular global combos first, generates remaining slots
+3. **Select** — `POST /api/combos/select` when user picks a combo → updates taste profile and global combo pool
 
 Other endpoints: `GET /api/catalog/dishes`, `GET /api/taste/:userId`, `POST /api/feedback/dish`

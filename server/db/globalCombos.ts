@@ -38,14 +38,30 @@ export async function upsertGlobalCombo(params: {
   cityCode: string | null;
 }): Promise<number> {
   const sortedIds = [...params.dishIds].sort((a, b) => a - b);
+  const cityKey = params.cityCode ?? "";
+
+  const existing = await query<{ id: number }>(
+    `SELECT id FROM global_combos
+     WHERE ingredient_signature = $1
+       AND dish_ids = $2::jsonb
+       AND COALESCE(city_code, '') = $3`,
+    [params.ingredientSignature, JSON.stringify(sortedIds), cityKey]
+  );
+
+  if (existing.rows[0]) {
+    await query(
+      `UPDATE global_combos
+       SET selection_count = selection_count + 1, last_selected_at = NOW()
+       WHERE id = $1`,
+      [existing.rows[0].id]
+    );
+    return existing.rows[0].id;
+  }
+
   const result = await query<{ id: number }>(
     `INSERT INTO global_combos
        (ingredient_signature, dish_ids, combo_name, sub_components, city_code, selection_count)
      VALUES ($1, $2::jsonb, $3, $4::jsonb, $5, 1)
-     ON CONFLICT (ingredient_signature, dish_ids, COALESCE(city_code, ''))
-     DO UPDATE SET
-       selection_count = global_combos.selection_count + 1,
-       last_selected_at = NOW()
      RETURNING id`,
     [
       params.ingredientSignature,

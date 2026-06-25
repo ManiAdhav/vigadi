@@ -468,7 +468,14 @@ export default function KitchenView({ meals, onSelectMeal, onSelectCreatedMeals 
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="text-[9px] font-mono font-bold text-bakedclay uppercase">Option {idx + 1}</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[9px] font-mono font-bold text-bakedclay uppercase">Option {idx + 1}</span>
+                        {combo.source === "global_pool" && combo.popularCount != null && combo.popularCount > 0 && (
+                          <span className="text-[9px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold">
+                            Popular · {combo.popularCount} picks
+                          </span>
+                        )}
+                      </div>
                       <h4 className="font-display font-bold text-espresso text-md">{combo.name}</h4>
                       <p className="text-[11px] text-espresso/60 mt-0.5">{combo.rationale}</p>
                     </div>
