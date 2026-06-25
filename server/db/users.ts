@@ -1,4 +1,11 @@
-import { query } from "./pool";
+import { query, isDatabaseConfigured } from "./pool";
+import {
+  memoryEnsureUserProfile,
+  memoryGetUserProfile,
+  memoryUpdateUserComboRules,
+  memoryGetTasteProfile,
+  memorySaveTasteProfile,
+} from "./memoryStore";
 
 export interface TasteProfile {
   liked_dish_types: Record<string, number>;
@@ -42,6 +49,10 @@ function parseTasteProfile(raw: TasteProfile | string | null | undefined): Taste
 }
 
 export async function ensureUserProfile(userId: string, username: string): Promise<void> {
+  if (!isDatabaseConfigured()) {
+    memoryEnsureUserProfile(userId, username);
+    return;
+  }
   await query(
     `INSERT INTO user_profiles (id, username) VALUES ($1, $2)
      ON CONFLICT (id) DO UPDATE SET username = EXCLUDED.username, updated_at = NOW()`,
@@ -50,6 +61,7 @@ export async function ensureUserProfile(userId: string, username: string): Promi
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfileRow | undefined> {
+  if (!isDatabaseConfigured()) return memoryGetUserProfile(userId);
   const result = await query<UserProfileRow>(
     `SELECT id, username, combo_rules, taste_profile, city_code FROM user_profiles WHERE id = $1`,
     [userId]
@@ -58,6 +70,10 @@ export async function getUserProfile(userId: string): Promise<UserProfileRow | u
 }
 
 export async function updateUserComboRules(userId: string, rules: string): Promise<void> {
+  if (!isDatabaseConfigured()) {
+    memoryUpdateUserComboRules(userId, rules);
+    return;
+  }
   await query(
     `UPDATE user_profiles SET combo_rules = $1, updated_at = NOW() WHERE id = $2`,
     [rules, userId]
@@ -65,6 +81,12 @@ export async function updateUserComboRules(userId: string, rules: string): Promi
 }
 
 export async function updateUserCity(userId: string, cityCode: string | null): Promise<void> {
+  if (!isDatabaseConfigured()) {
+    memoryEnsureUserProfile(userId, "Guest");
+    const profile = memoryGetUserProfile(userId);
+    if (profile) profile.city_code = cityCode?.trim().toLowerCase() || null;
+    return;
+  }
   await query(
     `UPDATE user_profiles SET city_code = $1, updated_at = NOW() WHERE id = $2`,
     [cityCode?.trim().toLowerCase() || null, userId]
@@ -72,12 +94,17 @@ export async function updateUserCity(userId: string, cityCode: string | null): P
 }
 
 export async function getTasteProfile(userId: string): Promise<TasteProfile> {
+  if (!isDatabaseConfigured()) return memoryGetTasteProfile(userId);
   const profile = await getUserProfile(userId);
   if (!profile) return { ...DEFAULT_TASTE };
   return parseTasteProfile(profile.taste_profile);
 }
 
 export async function saveTasteProfile(userId: string, taste: TasteProfile): Promise<void> {
+  if (!isDatabaseConfigured()) {
+    memorySaveTasteProfile(userId, taste);
+    return;
+  }
   await query(
     `UPDATE user_profiles SET taste_profile = $1::jsonb, updated_at = NOW() WHERE id = $2`,
     [JSON.stringify(taste), userId]
@@ -95,6 +122,7 @@ export async function insertCombo(combo: {
   source?: string;
   globalComboId?: number;
 }): Promise<void> {
+  if (!isDatabaseConfigured()) return;
   await query(
     `INSERT INTO combos (id, user_id, name, dish_ids, sub_components, category, status, source, global_combo_id)
      VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9)`,
@@ -113,6 +141,7 @@ export async function insertCombo(combo: {
 }
 
 export async function updateComboStatus(comboId: string, status: string): Promise<void> {
+  if (!isDatabaseConfigured()) return;
   await query(`UPDATE combos SET status = $1 WHERE id = $2`, [status, comboId]);
 }
 
@@ -126,6 +155,7 @@ export async function insertFeedback(feedback: {
   notes?: string;
   metadata?: Record<string, unknown>;
 }): Promise<void> {
+  if (!isDatabaseConfigured()) return;
   await query(
     `INSERT INTO feedback (id, user_id, dish_id, combo_id, thumb, feedback_type, notes, metadata)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
@@ -143,6 +173,7 @@ export async function insertFeedback(feedback: {
 }
 
 export async function getFeedbackForUser(userId: string) {
+  if (!isDatabaseConfigured()) return [];
   const result = await query(`SELECT * FROM feedback WHERE user_id = $1 ORDER BY created_at DESC`, [
     userId,
   ]);

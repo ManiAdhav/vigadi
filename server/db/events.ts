@@ -1,4 +1,4 @@
-import { query } from "./pool";
+import { query, isDatabaseConfigured } from "./pool";
 
 export async function insertGenerationSession(session: {
   id: string;
@@ -11,6 +11,7 @@ export async function insertGenerationSession(session: {
   slotsFromGlobal: number;
   slotsGenerated: number;
 }): Promise<void> {
+  if (!isDatabaseConfigured()) return;
   await query(
     `INSERT INTO generation_sessions
        (id, user_id, ingredient_signature, ingredients, combo_rules, category,
@@ -41,6 +42,7 @@ export async function insertComboCandidate(candidate: {
   rank: number;
   rationale?: string;
 }): Promise<void> {
+  if (!isDatabaseConfigured()) return;
   await query(
     `INSERT INTO combo_candidates
        (id, session_id, combo_name, dish_ids, source, global_combo_id, score, rank, rationale)
@@ -69,6 +71,7 @@ export async function insertSelectionEvent(event: {
   rejectedDishIds?: number[];
   globalComboId?: number;
 }): Promise<void> {
+  if (!isDatabaseConfigured()) return;
   await query(
     `INSERT INTO selection_events
        (id, session_id, user_id, selected_combo_id, rejected_combo_id,
@@ -95,6 +98,7 @@ export async function insertUserPreferredCombo(combo: {
   name: string;
   ingredientSignature: string;
 }): Promise<void> {
+  if (!isDatabaseConfigured()) return;
   await query(
     `INSERT INTO user_preferred_combos
        (id, user_id, global_combo_id, dish_ids, name, ingredient_signature)

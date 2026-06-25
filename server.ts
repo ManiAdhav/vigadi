@@ -729,9 +729,10 @@ app.post("/api/catalog/discover", async (req, res) => {
   }
 
   const uid = userId || "default-user";
-  await ensureUserProfile(uid, username || "Guest");
 
   try {
+    await ensureUserProfile(uid, username || "Guest");
+
     const { results, cacheHits, freshDiscoveries } = await discoverAndStoreIngredients(ingredients, {
       forceRefresh: !!forceRefresh,
     });
@@ -751,7 +752,9 @@ app.post("/api/catalog/discover", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Catalog discovery failed:", error);
-    res.status(500).json({ error: "Failed to discover dishes from YouTube catalog." });
+    res.status(500).json({
+      error: error.message || "Failed to discover dishes from YouTube catalog.",
+    });
   }
 });
 
@@ -976,7 +979,7 @@ async function startServer() {
       console.error("[Vigadi] Database migration failed:", err);
     }
   } else {
-    console.warn("[Vigadi] DATABASE_URL not set — Postgres features unavailable.");
+    console.warn("[Vigadi] DATABASE_URL not set — using in-memory catalog (data resets on restart).");
   }
 
   app.listen(PORT, "0.0.0.0", () => {
