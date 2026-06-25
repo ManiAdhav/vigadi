@@ -158,9 +158,9 @@ export async function buildCombosFromCatalog(params: {
 }): Promise<BuiltCombo[]> {
   const { ingredients, rules, category } = params;
   const comboRules = parseComboRules(rules);
-  const taste = getTasteProfile(params.userId);
+  const taste = await getTasteProfile(params.userId);
 
-  const catalogDishes = getDishesByIngredientNames(ingredients);
+  const catalogDishes = await getDishesByIngredientNames(ingredients);
   if (catalogDishes.length === 0) {
     return [];
   }

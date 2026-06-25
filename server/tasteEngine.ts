@@ -6,6 +6,7 @@ import {
   saveTasteProfile,
   TasteProfile,
   updateComboStatus,
+  DishRow,
 } from "./db";
 
 function bumpCounter(record: Record<string, number>, key: string, amount = 1) {
@@ -24,18 +25,18 @@ function extractPrepStyle(dishName: string): string {
   return "other";
 }
 
-export function recordDishFeedback(params: {
+export async function recordDishFeedback(params: {
   userId: string;
   username: string;
   dishId: number;
   thumb: "up" | "down";
   notes?: string;
-}): TasteProfile {
-  ensureUserProfile(params.userId, params.username);
-  const dish = getDishById(params.dishId);
+}): Promise<TasteProfile> {
+  await ensureUserProfile(params.userId, params.username);
+  const dish = await getDishById(params.dishId);
   if (!dish) return getTasteProfile(params.userId);
 
-  insertFeedback({
+  await insertFeedback({
     id: `fb-${Date.now()}`,
     userId: params.userId,
     dishId: params.dishId,
@@ -48,7 +49,7 @@ export function recordDishFeedback(params: {
   return updateTasteFromDish(params.userId, dish, params.thumb);
 }
 
-export function recordComboSelection(params: {
+export async function recordComboSelection(params: {
   userId: string;
   username: string;
   comboId: string;
@@ -56,12 +57,12 @@ export function recordComboSelection(params: {
   dishIds: number[];
   rejectedComboId?: string;
   rejectedDishIds?: number[];
-}): TasteProfile {
-  ensureUserProfile(params.userId, params.username);
-  updateComboStatus(params.comboId, "selected");
-  if (params.rejectedComboId) updateComboStatus(params.rejectedComboId, "rejected");
+}): Promise<TasteProfile> {
+  await ensureUserProfile(params.userId, params.username);
+  await updateComboStatus(params.comboId, "selected");
+  if (params.rejectedComboId) await updateComboStatus(params.rejectedComboId, "rejected");
 
-  insertFeedback({
+  await insertFeedback({
     id: `fb-sel-${Date.now()}`,
     userId: params.userId,
     comboId: params.comboId,
@@ -71,7 +72,7 @@ export function recordComboSelection(params: {
   });
 
   if (params.rejectedComboId) {
-    insertFeedback({
+    await insertFeedback({
       id: `fb-rej-${Date.now()}`,
       userId: params.userId,
       comboId: params.rejectedComboId,
@@ -81,34 +82,32 @@ export function recordComboSelection(params: {
     });
   }
 
-  let taste = getTasteProfile(params.userId);
+  let taste = await getTasteProfile(params.userId);
   taste.liked_combos.push(params.comboName);
 
   for (const dishId of params.dishIds) {
-    const dish = getDishById(dishId);
-    if (dish) taste = updateTasteFromDish(params.userId, dish, "up", taste);
+    const dish = await getDishById(dishId);
+    if (dish) taste = await updateTasteFromDish(params.userId, dish, "up", taste);
   }
 
   if (params.rejectedDishIds) {
     for (const dishId of params.rejectedDishIds) {
-      const dish = getDishById(dishId);
-      if (dish) taste = updateTasteFromDish(params.userId, dish, "down", taste);
+      const dish = await getDishById(dishId);
+      if (dish) taste = await updateTasteFromDish(params.userId, dish, "down", taste);
     }
   }
 
-  saveTasteProfile(params.userId, taste);
+  await saveTasteProfile(params.userId, taste);
   return taste;
 }
 
-function updateTasteFromDish(
+async function updateTasteFromDish(
   userId: string,
-  dish: ReturnType<typeof getDishById>,
+  dish: DishRow,
   thumb: "up" | "down",
   existing?: TasteProfile
-): TasteProfile {
-  if (!dish) return existing ?? getTasteProfile(userId);
-
-  const taste = existing ?? getTasteProfile(userId);
+): Promise<TasteProfile> {
+  const taste = existing ?? (await getTasteProfile(userId));
   const type = (dish.dish_type ?? "other").toLowerCase();
   const ingredient = (dish.ingredient_name ?? "unknown").toLowerCase();
   const prepStyle = extractPrepStyle(dish.name);
@@ -141,12 +140,12 @@ function updateTasteFromDish(
     taste.disliked_combos.push(dish.name);
   }
 
-  saveTasteProfile(userId, taste);
+  await saveTasteProfile(userId, taste);
   return taste;
 }
 
-export function getTasteSummary(userId: string) {
-  const taste = getTasteProfile(userId);
+export async function getTasteSummary(userId: string) {
+  const taste = await getTasteProfile(userId);
   const summaries: string[] = [];
 
   for (const [ing, prefs] of Object.entries(taste.ingredient_preferences)) {
