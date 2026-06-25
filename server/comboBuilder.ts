@@ -17,6 +17,9 @@ export interface BuiltCombo {
   dishes: ReturnType<typeof parseDishRow>[];
   staple: string;
   rationale: string;
+  source: "global_pool" | "gemini" | "rule_engine";
+  popularCount?: number;
+  globalComboId?: number;
 }
 
 const GRAVY_TYPES = new Set(["gravy", "kulambu", "sambar", "curry", "kuzhambu", "rasam"]);
@@ -50,7 +53,7 @@ function isSide(dish: DishRow): boolean {
   return SIDE_TYPES.has((dish.dish_type ?? "").toLowerCase());
 }
 
-function scoreDishForTaste(dish: DishRow, taste: TasteProfile, ingredientName: string): number {
+export function scoreDishForTaste(dish: DishRow, taste: TasteProfile, ingredientName: string): number {
   let score = 0;
   const type = (dish.dish_type ?? "").toLowerCase();
   const name = dish.name.toLowerCase();
@@ -155,12 +158,18 @@ export async function buildCombosFromCatalog(params: {
   ingredients: string[];
   rules: string;
   category: string;
+  excludeDishIds?: number[];
+  maxCombos?: number;
 }): Promise<BuiltCombo[]> {
   const { ingredients, rules, category } = params;
   const comboRules = parseComboRules(rules);
-  const taste = getTasteProfile(params.userId);
+  const taste = await getTasteProfile(params.userId);
+  const maxCombos = params.maxCombos ?? 2;
+  const excludeIds = new Set(params.excludeDishIds ?? []);
 
-  const catalogDishes = getDishesByIngredientNames(ingredients);
+  const catalogDishes = (await getDishesByIngredientNames(ingredients)).filter(
+    (d) => !excludeIds.has(d.id)
+  );
   if (catalogDishes.length === 0) {
     return [];
   }
@@ -168,19 +177,20 @@ export async function buildCombosFromCatalog(params: {
   const client = getGeminiClient();
   if (client && catalogDishes.length >= 3) {
     try {
-      return await buildCombosWithGemini({
+      const combos = await buildCombosWithGemini({
         dishes: catalogDishes,
         rules: comboRules,
         taste,
         category,
         ingredients,
       });
+      return combos.slice(0, maxCombos);
     } catch (err) {
       console.error("Gemini combo builder failed, using rule engine:", err);
     }
   }
 
-  return buildCombosRuleBased(catalogDishes, comboRules, taste, category);
+  return buildCombosRuleBased(catalogDishes, comboRules, taste, category).slice(0, maxCombos);
 }
 
 function buildCombosRuleBased(
@@ -207,6 +217,7 @@ function buildCombosRuleBased(
       dishes: parsed,
       staple: "Rice",
       rationale: `Balanced ${rules.gravyCount} gravy + ${rules.sideCount} sides from your ingredient catalog.`,
+      source: "rule_engine",
     });
   }
 
@@ -282,6 +293,7 @@ Return JSON:
       dishes: dishes.map(parseDishRow),
       staple: c.staple || "Rice",
       rationale: c.rationale || "",
+      source: "gemini" as const,
     };
   });
 }
@@ -325,7 +337,10 @@ export function combosToMeals(combos: BuiltCombo[], category: string) {
       matchedIngredients: combo.dishes.map((d) => d.ingredientName).filter(Boolean),
       youtubeLinks,
       videoCount: combo.dishes.length,
-      popularCount: "Catalog match",
+      popularCount:
+        combo.source === "global_pool" && combo.popularCount
+          ? `${combo.popularCount} picks`
+          : "Catalog match",
       dishIds: combo.dishIds,
     };
   });

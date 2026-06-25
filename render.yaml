@@ -9,9 +9,7 @@ services:
         value: production
       - key: GEMINI_API_KEY
         sync: false
+      - key: DATABASE_URL
+        sync: false
       - key: PORT
         value: "3000"
-    disk:
-      name: vigadi-data
-      mountPath: /app/data
-      sizeGB: 1

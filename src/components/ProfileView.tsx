@@ -196,11 +196,23 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
                 placeholder="e.g. Tamil Nadu, India"
               />
               <button
-                onClick={() => {
+                onClick={async () => {
                   const loc = locationInput.trim() || "Tamil Nadu, Chennai";
                   setUserLocation(loc);
                   localStorage.setItem("vigadi_user_location", loc);
                   setIsEditingLocation(false);
+                  const cityCode =
+                    loc.split(",").pop()?.trim().toLowerCase().replace(/\s+/g, "-") || null;
+                  try {
+                    const userId = localStorage.getItem("vigadi_user_id") || "default-user";
+                    await fetch(`/api/profile/${userId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ cityCode }),
+                    });
+                  } catch {
+                    /* local location still saved */
+                  }
                 }}
                 className="bg-espresso text-cream hover:bg-espresso/90 text-xs px-3 py-1.5 rounded-lg font-bold cursor-pointer"
               >

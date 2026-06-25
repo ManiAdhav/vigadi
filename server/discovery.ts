@@ -1,5 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
-import { insertDish, upsertIngredient, hasSufficientCachedDishes, getDishesForIngredient } from "./db";
+import {
+  insertDish,
+  upsertIngredient,
+  hasSufficientCachedDishes,
+  getDishesForIngredient,
+  parseDishRow,
+} from "./db";
 import { GEMINI_MODEL } from "./geminiConfig";
 import { cleanAndParseJson, extractYouTubeVideoId } from "./jsonUtils";
 
@@ -130,7 +136,7 @@ export async function discoverAndStoreIngredients(
   ingredients: string[],
   options?: { forceRefresh?: boolean }
 ) {
-  const results: Record<string, ReturnType<typeof persistDiscoveredDishes>> = {};
+  const results: Record<string, Awaited<ReturnType<typeof persistDiscoveredDishes>>> = {};
   const cacheHits: string[] = [];
   const freshDiscoveries: string[] = [];
 
@@ -138,22 +144,14 @@ export async function discoverAndStoreIngredients(
     const name = raw.trim();
     if (!name || name.toLowerCase() === "rice") continue;
 
-    const ingredientId = upsertIngredient(name);
+    const ingredientId = await upsertIngredient(name);
 
-    if (!options?.forceRefresh && hasSufficientCachedDishes(name)) {
+    if (!options?.forceRefresh && (await hasSufficientCachedDishes(name))) {
       cacheHits.push(name);
-      const cached = getDishesForIngredient(name);
+      const cached = await getDishesForIngredient(name);
       results[name] = cached.map((row) => ({
-        id: row.id,
+        ...parseDishRow(row),
         ingredientName: row.ingredient_name ?? name,
-        name: row.name,
-        youtubeUrl: row.youtube_url ?? "",
-        dishType: row.dish_type ?? "side",
-        spiceLevel: row.spice_level ?? "medium",
-        mainIngredients: row.main_ingredients ? JSON.parse(row.main_ingredients) : [],
-        pairsWith: row.pairs_with ? JSON.parse(row.pairs_with) : ["Rice"],
-        description: row.description ?? "",
-        channelName: row.channel_name ?? undefined,
         fromCache: true,
       }));
       continue;
@@ -161,17 +159,21 @@ export async function discoverAndStoreIngredients(
 
     freshDiscoveries.push(name);
     const discovered = await discoverDishesForIngredient(name);
-    const stored = persistDiscoveredDishes(ingredientId, name, discovered);
+    const stored = await persistDiscoveredDishes(ingredientId, name, discovered);
     results[name] = stored;
   }
 
   return { results, cacheHits, freshDiscoveries };
 }
 
-function persistDiscoveredDishes(ingredientId: number, ingredientName: string, dishes: DiscoveredDish[]) {
+async function persistDiscoveredDishes(
+  ingredientId: number,
+  ingredientName: string,
+  dishes: DiscoveredDish[]
+) {
   const stored: any[] = [];
   for (const dish of dishes) {
-    const id = insertDish({
+    const id = await insertDish({
       ingredientId,
       name: dish.name,
       youtubeUrl: dish.youtubeUrl,

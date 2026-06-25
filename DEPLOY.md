@@ -1,6 +1,6 @@
 # Deploy & publish Vígadi as a PWA
 
-Vígadi is a **full-stack Node app** (Express API + React PWA + SQLite). You need a host that runs Node.js and supports a **persistent disk** for `data/vigadi.db`.
+Vígadi is a **full-stack Node app** (Express API + React PWA + **Postgres**). You need a host that runs Node.js and a **DATABASE_URL** (Neon or Supabase recommended).
 
 ---
 
