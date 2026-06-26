@@ -4,3 +4,9 @@ export * from "./globalCombos";
 export * from "./events";
 export { getPool, query } from "./pool";
 export { buildIngredientSignature, normalizeIngredient } from "./ingredientSignature";
+export {
+  searchIngredients,
+  resolveIngredient,
+  resolveToCanonical,
+  resolveIngredientList,
+} from "./ingredientResolver";

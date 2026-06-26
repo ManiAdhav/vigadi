@@ -1,5 +1,6 @@
 import { query, isDatabaseConfigured } from "./pool";
 import { normalizeIngredient } from "./ingredientSignature";
+import { resolveToCanonical } from "./ingredientResolver";
 import {
   memoryUpsertIngredient,
   memoryInsertDish,
@@ -61,9 +62,10 @@ export function parseDishRow(row: DishRow) {
 }
 
 export async function upsertIngredient(name: string): Promise<number> {
-  if (!isDatabaseConfigured()) return memoryUpsertIngredient(name);
-  const normalized = normalizeIngredient(name);
-  const display = name.trim().charAt(0).toUpperCase() + name.trim().slice(1);
+  const canonical = resolveToCanonical(name);
+  if (!isDatabaseConfigured()) return memoryUpsertIngredient(canonical);
+  const normalized = normalizeIngredient(canonical);
+  const display = canonical;
   const result = await query<{ id: number }>(
     `INSERT INTO ingredients (name, normalized_name) VALUES ($1, $2)
      ON CONFLICT (normalized_name) DO UPDATE SET name = EXCLUDED.name
@@ -74,8 +76,9 @@ export async function upsertIngredient(name: string): Promise<number> {
 }
 
 export async function getIngredientByName(name: string): Promise<{ id: number; name: string } | undefined> {
-  if (!isDatabaseConfigured()) return memoryGetIngredientByName(name);
-  const normalized = normalizeIngredient(name);
+  const canonical = resolveToCanonical(name);
+  if (!isDatabaseConfigured()) return memoryGetIngredientByName(canonical);
+  const normalized = normalizeIngredient(canonical);
   const result = await query<{ id: number; name: string }>(
     `SELECT id, name FROM ingredients WHERE normalized_name = $1`,
     [normalized]
@@ -126,9 +129,10 @@ export async function insertDish(dish: {
 }
 
 export async function getDishesByIngredientNames(names: string[]): Promise<DishRow[]> {
-  if (!isDatabaseConfigured()) return memoryGetDishesByIngredientNames(names);
-  if (names.length === 0) return [];
-  const normalized = names.map(normalizeIngredient);
+  const canonicalNames = names.map(resolveToCanonical);
+  if (!isDatabaseConfigured()) return memoryGetDishesByIngredientNames(canonicalNames);
+  if (canonicalNames.length === 0) return [];
+  const normalized = canonicalNames.map(normalizeIngredient);
   const placeholders = normalized.map((_, i) => `$${i + 1}`).join(",");
   const result = await query<DishRow>(
     `SELECT d.*, i.name as ingredient_name
@@ -153,8 +157,9 @@ export async function getDishesGroupedByIngredient(names: string[]): Promise<Rec
 }
 
 export async function getDishCountForIngredient(ingredientName: string): Promise<number> {
-  if (!isDatabaseConfigured()) return memoryGetDishCountForIngredient(ingredientName);
-  const normalized = normalizeIngredient(ingredientName);
+  const canonical = resolveToCanonical(ingredientName);
+  if (!isDatabaseConfigured()) return memoryGetDishCountForIngredient(canonical);
+  const normalized = normalizeIngredient(canonical);
   const result = await query<{ count: string }>(
     `SELECT COUNT(*) as count FROM dishes d
      JOIN ingredients i ON d.ingredient_id = i.id
@@ -173,8 +178,9 @@ export async function hasSufficientCachedDishes(
 }
 
 export async function getDishesForIngredient(ingredientName: string): Promise<DishRow[]> {
-  if (!isDatabaseConfigured()) return memoryGetDishesForIngredient(ingredientName);
-  const normalized = normalizeIngredient(ingredientName);
+  const canonical = resolveToCanonical(ingredientName);
+  if (!isDatabaseConfigured()) return memoryGetDishesForIngredient(canonical);
+  const normalized = normalizeIngredient(canonical);
   const result = await query<DishRow>(
     `SELECT d.*, i.name as ingredient_name
      FROM dishes d

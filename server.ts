@@ -13,6 +13,8 @@ import {
   parseDishRow,
   updateUserComboRules,
   updateUserCity,
+  searchIngredients,
+  resolveIngredientList,
 } from "./server/db";
 import { discoverAndStoreIngredients } from "./server/discovery";
 import { combosToMeals } from "./server/comboBuilder";
@@ -719,6 +721,22 @@ Provide the response as a single valid JSON object adhering precisely to this sc
     console.error("Gemini combination generation failed in Engine 3:", error);
     res.status(500).json({ error: "Gemini AI failed to process ingredients. Please check configuration." });
   }
+});
+
+// --- Ingredient alias search (offline catalog + fuzzy match) ---
+app.get("/api/ingredients/search", (req, res) => {
+  const q = typeof req.query.q === "string" ? req.query.q : "";
+  const limit = Math.min(Number(req.query.limit) || 8, 20);
+  const results = searchIngredients(q, limit);
+  res.json({ results });
+});
+
+app.post("/api/ingredients/resolve", (req, res) => {
+  const { names } = req.body;
+  if (!names || !Array.isArray(names)) {
+    return res.status(400).json({ error: "Provide an array of ingredient names." });
+  }
+  res.json({ canonical: resolveIngredientList(names) });
 });
 
 // --- Phase A: Ingredient → YouTube dish catalog ---
