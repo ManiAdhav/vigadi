@@ -9,15 +9,15 @@ describe("normalizeIngredient", () => {
 
 describe("buildIngredientSignature", () => {
   it("sorts and joins ingredients", () => {
-    expect(buildIngredientSignature(["Potato", "Brinjal"])).toBe("brinjal|potato");
+    expect(buildIngredientSignature(["Potato", "Brinjal"])).toBe("eggplant|potato");
   });
 
   it("excludes rice", () => {
-    expect(buildIngredientSignature(["Rice", "Brinjal", "Potato"])).toBe("brinjal|potato");
+    expect(buildIngredientSignature(["Rice", "Brinjal", "Potato"])).toBe("eggplant|potato");
   });
 
-  it("deduplicates via normalization", () => {
-    expect(buildIngredientSignature(["brinjal", "Brinjal"])).toBe("brinjal");
+  it("deduplicates via normalization and alias resolution", () => {
+    expect(buildIngredientSignature(["brinjal", "Eggplant"])).toBe("eggplant");
   });
 
   it("returns empty string for rice-only input", () => {

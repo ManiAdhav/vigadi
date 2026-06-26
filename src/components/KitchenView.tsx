@@ -1,6 +1,5 @@
-import { useState, FormEvent, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
-  Plus,
   X,
   ChefHat,
   Clock,
@@ -11,6 +10,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { BuiltComboOption, Meal } from "../types";
+import IngredientAutocomplete from "./IngredientAutocomplete";
 
 interface KitchenViewProps {
   onSelectMeal: (meal: Meal) => void;
@@ -35,7 +35,6 @@ function getUsername() {
 
 export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: KitchenViewProps) {
   const [tags, setTags] = useState<string[]>(["Potato", "Fish", "Chicken", "Tomato"]);
-  const [inputValue, setInputValue] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<"Breakfast" | "Lunch" | "Dinner">("Lunch");
   const [customRules, setCustomRules] = useState(
     () => localStorage.getItem("vigadi_custom_rules") || "Tamil Nadu rules: 1 Kulambu, 2 Sides"
@@ -91,13 +90,9 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
     }
   };
 
-  const handleAddTag = (e: FormEvent) => {
-    e.preventDefault();
-    const cleanVal = inputValue.trim();
-    if (!cleanVal || cleanVal.toLowerCase() === "rice") return;
-    const formatted = cleanVal.charAt(0).toUpperCase() + cleanVal.slice(1);
-    if (!tags.includes(formatted)) setTags([...tags, formatted]);
-    setInputValue("");
+  const handleAddIngredient = (canonical: string) => {
+    if (!canonical || canonical.toLowerCase() === "rice") return;
+    if (!tags.includes(canonical)) setTags([...tags, canonical]);
   };
 
   const handleRemoveTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
@@ -231,18 +226,13 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
           Your ingredients
         </h3>
 
-        <form onSubmit={handleAddTag} className="flex gap-2">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Fish, potato, green jaal..."
-            className="flex-1 bg-cream border border-matcha py-2.5 px-3.5 rounded-xl text-espresso text-xs focus:outline-hidden focus:ring-1 focus:ring-sage/60"
+        <div className="flex gap-2">
+          <IngredientAutocomplete
+            onSelect={handleAddIngredient}
+            placeholder="kathirikai, brinjal, sorakkai…"
+            disabled={isWorking}
           />
-          <button type="submit" className="bg-espresso text-cream px-3.5 rounded-xl cursor-pointer">
-            <Plus className="w-4 h-4" />
-          </button>
-        </form>
+        </div>
 
         <div className="flex flex-wrap gap-1.5">
           {tags.map((tag) => (

@@ -5,7 +5,10 @@ import {
   hasSufficientCachedDishes,
   getDishesForIngredient,
   parseDishRow,
+  resolveToCanonical,
 } from "./db";
+import { normalizeAlias } from "../shared/ingredientCatalog";
+import { resolveIngredient } from "../shared/ingredientSearch";
 import { GEMINI_MODEL } from "./geminiConfig";
 import { cleanAndParseJson, extractYouTubeVideoId } from "./jsonUtils";
 
@@ -64,19 +67,34 @@ const OFFLINE_DISH_TEMPLATES: Record<string, DiscoveredDish[]> = {
     { name: "Tomato Sambar", youtubeUrl: "https://www.youtube.com/results?search_query=tomato+sambar", dishType: "gravy", spiceLevel: "medium", mainIngredients: ["tomato", "toor dal"], pairsWith: ["Rice", "Idli"], description: "Classic tomato lentil sambar" },
     { name: "Tomato Fry", youtubeUrl: "https://www.youtube.com/results?search_query=tomato+fry+south+indian", dishType: "side", spiceLevel: "medium", mainIngredients: ["tomato", "onion"], pairsWith: ["Rice", "Chapati"], description: "Sautéed tomato side dish" },
   ],
+  eggplant: [
+    { name: "Kathirikai Poriyal", youtubeUrl: "https://www.youtube.com/results?search_query=kathirikai+poriyal", dishType: "side", spiceLevel: "mild", mainIngredients: ["eggplant", "coconut"], pairsWith: ["Rice"], description: "Dry brinjal coconut poriyal" },
+    { name: "Brinjal Curry", youtubeUrl: "https://www.youtube.com/results?search_query=brinjal+curry+south+indian", dishType: "gravy", spiceLevel: "medium", mainIngredients: ["eggplant", "onion", "tomato"], pairsWith: ["Rice", "Chapati"], description: "Homestyle brinjal curry" },
+    { name: "Kathirikai Kara Kuzhambu", youtubeUrl: "https://www.youtube.com/results?search_query=kathirikai+kara+kuzhambu", dishType: "gravy", spiceLevel: "spicy", mainIngredients: ["eggplant", "tamarind"], pairsWith: ["Rice"], description: "Spicy tangy brinjal kulambu" },
+    { name: "Brinjal Fry", youtubeUrl: "https://www.youtube.com/results?search_query=brinjal+fry+south+indian", dishType: "side", spiceLevel: "medium", mainIngredients: ["eggplant"], pairsWith: ["Rice"], description: "Crispy pan-fried brinjal" },
+    { name: "Ennai Kathirikai", youtubeUrl: "https://www.youtube.com/results?search_query=ennai+kathirikai", dishType: "side", spiceLevel: "medium", mainIngredients: ["eggplant", "sesame oil"], pairsWith: ["Rice"], description: "Oil-roasted stuffed brinjal" },
+  ],
+  okra: [
+    { name: "Vendakkai Poriyal", youtubeUrl: "https://www.youtube.com/results?search_query=vendakkai+poriyal", dishType: "side", spiceLevel: "mild", mainIngredients: ["okra", "coconut"], pairsWith: ["Rice"], description: "Dry okra coconut poriyal" },
+    { name: "Vendakkai Fry", youtubeUrl: "https://www.youtube.com/results?search_query=vendakkai+fry", dishType: "side", spiceLevel: "medium", mainIngredients: ["okra"], pairsWith: ["Rice"], description: "Crispy okra fry" },
+    { name: "Vendakkai Sambar", youtubeUrl: "https://www.youtube.com/results?search_query=vendakkai+sambar", dishType: "gravy", spiceLevel: "medium", mainIngredients: ["okra", "toor dal"], pairsWith: ["Rice"], description: "Okra lentil sambar" },
+    { name: "Bhindi Masala", youtubeUrl: "https://www.youtube.com/results?search_query=bhindi+masala", dishType: "gravy", spiceLevel: "medium", mainIngredients: ["okra", "onion"], pairsWith: ["Rice", "Chapati"], description: "North-South okra masala" },
+    { name: "Vendakkai Kara Kuzhambu", youtubeUrl: "https://www.youtube.com/results?search_query=vendakkai+kuzhambu", dishType: "gravy", spiceLevel: "spicy", mainIngredients: ["okra", "tamarind"], pairsWith: ["Rice"], description: "Spicy okra kulambu" },
+  ],
 };
 
 function getOfflineDishes(ingredient: string): DiscoveredDish[] {
-  const key = ingredient.toLowerCase().replace(/\s+/g, " ");
+  const resolved = resolveIngredient(ingredient);
+  const key = resolved?.id ?? normalizeAlias(ingredient);
   if (OFFLINE_DISH_TEMPLATES[key]) return OFFLINE_DISH_TEMPLATES[key];
 
-  const base = ingredient.charAt(0).toUpperCase() + ingredient.slice(1);
+  const canonical = resolved?.canonical ?? ingredient.charAt(0).toUpperCase() + ingredient.slice(1);
   return [
-    { name: `${base} Fry`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(base + " fry south indian")}`, dishType: "side", spiceLevel: "medium", mainIngredients: [base.toLowerCase()], pairsWith: ["Rice"], description: `Crispy ${base.toLowerCase()} fry side` },
-    { name: `${base} Sambar`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(base + " sambar")}`, dishType: "gravy", spiceLevel: "medium", mainIngredients: [base.toLowerCase(), "toor dal"], pairsWith: ["Rice"], description: `Tangy ${base.toLowerCase()} sambar gravy` },
-    { name: `${base} Poriyal`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(base + " poriyal")}`, dishType: "side", spiceLevel: "mild", mainIngredients: [base.toLowerCase(), "coconut"], pairsWith: ["Rice"], description: `Dry coconut ${base.toLowerCase()} poriyal` },
-    { name: `${base} Curry`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(base + " curry south indian")}`, dishType: "gravy", spiceLevel: "medium", mainIngredients: [base.toLowerCase(), "onion"], pairsWith: ["Rice", "Chapati"], description: `${base} homestyle curry` },
-    { name: `${base} Roast`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(base + " roast south indian")}`, dishType: "side", spiceLevel: "spicy", mainIngredients: [base.toLowerCase()], pairsWith: ["Rice"], description: `Spiced roasted ${base.toLowerCase()}` },
+    { name: `${canonical} Fry`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(canonical + " fry south indian")}`, dishType: "side", spiceLevel: "medium", mainIngredients: [canonical.toLowerCase()], pairsWith: ["Rice"], description: `Crispy ${canonical.toLowerCase()} fry side` },
+    { name: `${canonical} Sambar`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(canonical + " sambar")}`, dishType: "gravy", spiceLevel: "medium", mainIngredients: [canonical.toLowerCase(), "toor dal"], pairsWith: ["Rice"], description: `Tangy ${canonical.toLowerCase()} sambar gravy` },
+    { name: `${canonical} Poriyal`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(canonical + " poriyal")}`, dishType: "side", spiceLevel: "mild", mainIngredients: [canonical.toLowerCase(), "coconut"], pairsWith: ["Rice"], description: `Dry coconut ${canonical.toLowerCase()} poriyal` },
+    { name: `${canonical} Curry`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(canonical + " curry south indian")}`, dishType: "gravy", spiceLevel: "medium", mainIngredients: [canonical.toLowerCase(), "onion"], pairsWith: ["Rice", "Chapati"], description: `${canonical} homestyle curry` },
+    { name: `${canonical} Roast`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(canonical + " roast south indian")}`, dishType: "side", spiceLevel: "spicy", mainIngredients: [canonical.toLowerCase()], pairsWith: ["Rice"], description: `Spiced roasted ${canonical.toLowerCase()}` },
   ];
 }
 
@@ -141,26 +159,26 @@ export async function discoverAndStoreIngredients(
   const freshDiscoveries: string[] = [];
 
   for (const raw of ingredients) {
-    const name = raw.trim();
-    if (!name || name.toLowerCase() === "rice") continue;
+    const canonical = resolveToCanonical(raw);
+    if (!canonical || canonical.toLowerCase() === "rice") continue;
 
-    const ingredientId = await upsertIngredient(name);
+    const ingredientId = await upsertIngredient(canonical);
 
-    if (!options?.forceRefresh && (await hasSufficientCachedDishes(name))) {
-      cacheHits.push(name);
-      const cached = await getDishesForIngredient(name);
-      results[name] = cached.map((row) => ({
+    if (!options?.forceRefresh && (await hasSufficientCachedDishes(canonical))) {
+      cacheHits.push(canonical);
+      const cached = await getDishesForIngredient(canonical);
+      results[canonical] = cached.map((row) => ({
         ...parseDishRow(row),
-        ingredientName: row.ingredient_name ?? name,
+        ingredientName: row.ingredient_name ?? canonical,
         fromCache: true,
       }));
       continue;
     }
 
-    freshDiscoveries.push(name);
-    const discovered = await discoverDishesForIngredient(name);
-    const stored = await persistDiscoveredDishes(ingredientId, name, discovered);
-    results[name] = stored;
+    freshDiscoveries.push(canonical);
+    const discovered = await discoverDishesForIngredient(canonical);
+    const stored = await persistDiscoveredDishes(ingredientId, canonical, discovered);
+    results[canonical] = stored;
   }
 
   return { results, cacheHits, freshDiscoveries };
