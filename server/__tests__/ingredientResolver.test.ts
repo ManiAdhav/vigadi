@@ -32,19 +32,19 @@ describe("fuzzyScore", () => {
 });
 
 describe("searchIngredients", () => {
-  it("finds exact alias brinjal → Eggplant", () => {
+  it("finds exact alias brinjal → Brinjal", () => {
     const results = searchIngredients("brinjal");
-    expect(results[0]?.canonical).toBe("Eggplant");
+    expect(results[0]?.canonical).toBe("Brinjal");
     expect(results[0]?.matchType).toBe("exact");
   });
 
   it("finds Tamil transliteration kathirikai", () => {
     const results = searchIngredients("kathirikai");
-    expect(results[0]?.canonical).toBe("Eggplant");
+    expect(results[0]?.canonical).toBe("Brinjal");
   });
 
-  it("finds green jaal → Okra", () => {
-    const results = searchIngredients("green jaal");
+  it("finds bhindi → Okra", () => {
+    const results = searchIngredients("bhindi");
     expect(results[0]?.canonical).toBe("Okra");
   });
 
@@ -64,12 +64,16 @@ describe("searchIngredients", () => {
 });
 
 describe("resolveToCanonical", () => {
-  it("maps brinjal to Eggplant", () => {
-    expect(resolveToCanonical("brinjal")).toBe("Eggplant");
+  it("maps brinjal to Brinjal", () => {
+    expect(resolveToCanonical("brinjal")).toBe("Brinjal");
   });
 
-  it("maps baingan to Eggplant", () => {
-    expect(resolveToCanonical("baingan")).toBe("Eggplant");
+  it("maps baingan to Brinjal", () => {
+    expect(resolveToCanonical("baingan")).toBe("Brinjal");
+  });
+
+  it("maps eggplant to Eggplant", () => {
+    expect(resolveToCanonical("eggplant")).toBe("Eggplant");
   });
 
   it("passes through unknown ingredients with capitalization", () => {
@@ -79,7 +83,7 @@ describe("resolveToCanonical", () => {
 
 describe("resolveIngredientList", () => {
   it("deduplicates aliases to one canonical", () => {
-    expect(resolveIngredientList(["brinjal", "Eggplant", "baingan"])).toEqual(["Eggplant"]);
+    expect(resolveIngredientList(["brinjal", "Brinjal", "baingan"])).toEqual(["Brinjal"]);
   });
 
   it("excludes rice", () => {

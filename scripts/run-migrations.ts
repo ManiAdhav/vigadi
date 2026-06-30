@@ -17,8 +17,13 @@ async function main() {
   const sqlPath = path.join(process.cwd(), "migrations/001_initial.sql");
   const sql = fs.readFileSync(sqlPath, "utf8");
   await client.query(sql);
+
+  const sql2Path = path.join(process.cwd(), "migrations/002_ingredient_aliases.sql");
+  const sql2 = fs.readFileSync(sql2Path, "utf8");
+  await client.query(sql2);
+
   await client.end();
-  console.log("Migration 001 applied.");
+  console.log("Migrations 001 and 002 applied.");
 }
 
 main().catch((err) => {

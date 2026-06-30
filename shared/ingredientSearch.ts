@@ -22,6 +22,7 @@ for (const entry of INGREDIENT_CATALOG) {
   const variants = [
     entry.canonical,
     entry.transliteration,
+    entry.tamil,
     ...entry.aliases,
   ].filter(Boolean) as string[];
 

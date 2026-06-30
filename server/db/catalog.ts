@@ -1,6 +1,6 @@
 import { query, isDatabaseConfigured } from "./pool";
 import { normalizeIngredient } from "./ingredientSignature";
-import { resolveToCanonical } from "./ingredientResolver";
+import { resolveToCanonical, resolveIngredient } from "./ingredientResolver";
 import {
   memoryUpsertIngredient,
   memoryInsertDish,
@@ -63,14 +63,15 @@ export function parseDishRow(row: DishRow) {
 
 export async function upsertIngredient(name: string): Promise<number> {
   const canonical = resolveToCanonical(name);
+  const catalogSlug = resolveIngredient(name)?.id ?? null;
   if (!isDatabaseConfigured()) return memoryUpsertIngredient(canonical);
   const normalized = normalizeIngredient(canonical);
   const display = canonical;
   const result = await query<{ id: number }>(
-    `INSERT INTO ingredients (name, normalized_name) VALUES ($1, $2)
-     ON CONFLICT (normalized_name) DO UPDATE SET name = EXCLUDED.name
+    `INSERT INTO ingredients (name, normalized_name, catalog_slug) VALUES ($1, $2, $3)
+     ON CONFLICT (normalized_name) DO UPDATE SET name = EXCLUDED.name, catalog_slug = EXCLUDED.catalog_slug
      RETURNING id`,
-    [display, normalized]
+    [display, normalized, catalogSlug]
   );
   return result.rows[0].id;
 }

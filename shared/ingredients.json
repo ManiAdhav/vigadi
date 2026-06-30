@@ -1,0 +1,1243 @@
+[
+  {
+    "id": "drumstick",
+    "canonical": "Drumstick",
+    "tamil": "முருங்கைக்காய்",
+    "transliteration": "murungakkai",
+    "aliases": [
+      "murungakai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "brinjal",
+    "canonical": "Brinjal",
+    "tamil": "கத்தரிக்காய்",
+    "transliteration": "kathirikai",
+    "aliases": [
+      "baingan",
+      "gundu kathirikai",
+      "small brinjal",
+      "kathiri",
+      "kathrikai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "eggplant",
+    "canonical": "Eggplant",
+    "tamil": "",
+    "transliteration": "eggplant",
+    "aliases": [
+      "large eggplant",
+      "european eggplant"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "okra",
+    "canonical": "Okra",
+    "tamil": "வெண்டைக்காய்",
+    "transliteration": "vendaikkai",
+    "aliases": [
+      "ladyfinger",
+      "vendakkai",
+      "vendakai",
+      "bhindi"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "snake-gourd",
+    "canonical": "Snake gourd",
+    "tamil": "புடலங்காய்",
+    "transliteration": "pudalangai",
+    "aliases": [
+      "chichinda",
+      "potlakaya"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "ridge-gourd",
+    "canonical": "Ridge gourd",
+    "tamil": "பீர்க்கங்காய்",
+    "transliteration": "peerkangai",
+    "aliases": [
+      "turai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "bottle-gourd",
+    "canonical": "Bottle gourd",
+    "tamil": "சுரைக்காய்",
+    "transliteration": "suraikkai",
+    "aliases": [
+      "suraikai",
+      "lauki",
+      "sorakkai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "ash-gourd",
+    "canonical": "Ash gourd",
+    "tamil": "பூசணிக்காய்",
+    "transliteration": "poosanikkai",
+    "aliases": [
+      "white pumpkin",
+      "petha",
+      "ven poosani"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "pumpkin",
+    "canonical": "Pumpkin",
+    "tamil": "மஞ்சள் பூசணி",
+    "transliteration": "manjal poosani",
+    "aliases": [
+      "yellow pumpkin",
+      "parangikai",
+      "kaddu"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "cluster-beans",
+    "canonical": "Cluster beans",
+    "tamil": "கொத்தவரங்காய்",
+    "transliteration": "kothavarangai",
+    "aliases": [
+      "guar phali"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "broad-beans",
+    "canonical": "Broad beans",
+    "tamil": "அவரைக்காய்",
+    "transliteration": "avaraikkai",
+    "aliases": [
+      "avarai",
+      "papdi",
+      "avarekai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "french-beans",
+    "canonical": "French beans",
+    "tamil": "பீன்ஸ்",
+    "transliteration": "beans",
+    "aliases": [
+      "green beans",
+      "phasio"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "raw-banana",
+    "canonical": "Raw banana",
+    "tamil": "வாழைக்காய்",
+    "transliteration": "vazhaikkai",
+    "aliases": [
+      "plantain",
+      "valakkai",
+      "kaccha kela"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "banana-stem",
+    "canonical": "Banana stem",
+    "tamil": "வாழைத்தண்டு",
+    "transliteration": "vazhaithandu",
+    "aliases": [
+      "valai thandu"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "banana-flower",
+    "canonical": "Banana flower",
+    "tamil": "வாழைப்பூ",
+    "transliteration": "vazhaipoo",
+    "aliases": [
+      "valai poo",
+      "plantain flower"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "elephant-foot-yam",
+    "canonical": "Elephant foot yam",
+    "tamil": "சேனைக்கிழங்கு",
+    "transliteration": "senaikizhangu",
+    "aliases": [
+      "senai kizhangu",
+      "suran",
+      "yam"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "taro-root",
+    "canonical": "Taro root",
+    "tamil": "சேப்பங்கிழங்கு",
+    "transliteration": "seppankizhangu",
+    "aliases": [
+      "colocasia",
+      "arbi",
+      "seppakizhangu"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "sweet-potato",
+    "canonical": "Sweet potato",
+    "tamil": "சர்க்கரைவள்ளிக்கிழங்கு",
+    "transliteration": "sarkaraivalli kizhangu",
+    "aliases": [
+      "sakkaravalli",
+      "shakarkandi"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "tapioca",
+    "canonical": "Tapioca",
+    "tamil": "மரவள்ளிக்கிழங்கு",
+    "transliteration": "maravalli kizhangu",
+    "aliases": [
+      "cassava",
+      "kappa",
+      "kuchi kizhangu"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "potato",
+    "canonical": "Potato",
+    "tamil": "உருளைக்கிழங்கு",
+    "transliteration": "urulaikizhangu",
+    "aliases": [
+      "aloo",
+      "urulai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "carrot",
+    "canonical": "Carrot",
+    "tamil": "கேரட்",
+    "transliteration": "carrot",
+    "aliases": [
+      "gajar"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "beetroot",
+    "canonical": "Beetroot",
+    "tamil": "பீட்ரூட்",
+    "transliteration": "beetroot",
+    "aliases": [],
+    "category": "vegetable"
+  },
+  {
+    "id": "radish",
+    "canonical": "Radish",
+    "tamil": "முள்ளங்கி",
+    "transliteration": "mullangi",
+    "aliases": [
+      "mooli"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "shallots",
+    "canonical": "Shallots",
+    "tamil": "சின்ன வெங்காயம்",
+    "transliteration": "chinna vengayam",
+    "aliases": [
+      "sambar onion",
+      "small onion",
+      "chota pyaaz"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "onion",
+    "canonical": "Onion",
+    "tamil": "பெரிய வெங்காயம்",
+    "transliteration": "periya vengayam",
+    "aliases": [
+      "big onion",
+      "vengayam",
+      "pyaaz"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "tomato",
+    "canonical": "Tomato",
+    "tamil": "தக்காளி",
+    "transliteration": "thakkali",
+    "aliases": [
+      "tamatar",
+      "takkali"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "cabbage",
+    "canonical": "Cabbage",
+    "tamil": "முட்டைக்கோஸ்",
+    "transliteration": "muttaikose",
+    "aliases": [
+      "patta gobi",
+      "kose"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "cauliflower",
+    "canonical": "Cauliflower",
+    "tamil": "காலிஃபிளவர்",
+    "transliteration": "cauliflower",
+    "aliases": [
+      "gobi",
+      "poo kose"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "bitter-gourd",
+    "canonical": "Bitter gourd",
+    "tamil": "பாகற்காய்",
+    "transliteration": "pavakkai",
+    "aliases": [
+      "karela",
+      "pagarkai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "ivy-gourd",
+    "canonical": "Ivy gourd",
+    "tamil": "கோவக்காய்",
+    "transliteration": "kovakkai",
+    "aliases": [
+      "tindora",
+      "kundru"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "chayote",
+    "canonical": "Chayote",
+    "tamil": "சௌசௌ",
+    "transliteration": "chow chow",
+    "aliases": [
+      "bangalore kathirikai",
+      "ishkus",
+      "chowchow"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "capsicum",
+    "canonical": "Capsicum",
+    "tamil": "குடைமிளகாய்",
+    "transliteration": "kudaimilagai",
+    "aliases": [
+      "bell pepper",
+      "shimla mirch"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "cucumber",
+    "canonical": "Cucumber",
+    "tamil": "வெள்ளரிக்காய்",
+    "transliteration": "vellarikkai",
+    "aliases": [
+      "kheera"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "raw-mango",
+    "canonical": "Raw mango",
+    "tamil": "மாங்காய்",
+    "transliteration": "mangai",
+    "aliases": [
+      "kaccha aam",
+      "green mango"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "mulai-keerai",
+    "canonical": "Mulai keerai",
+    "tamil": "முளைக்கீரை",
+    "transliteration": "mulai keerai",
+    "aliases": [
+      "amaranth leaves",
+      "mulaikeerai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "arai-keerai",
+    "canonical": "Arai keerai",
+    "tamil": "அரைக்கீரை",
+    "transliteration": "arai keerai",
+    "aliases": [
+      "amaranth",
+      "araikeerai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "ponnanganni-keerai",
+    "canonical": "Ponnanganni keerai",
+    "tamil": "பொன்னாங்கண்ணி கீரை",
+    "transliteration": "ponnanganni keerai",
+    "aliases": [
+      "dwarf copperleaf",
+      "ponnangani"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "murungai-keerai",
+    "canonical": "Murungai keerai",
+    "tamil": "முருங்கை கீரை",
+    "transliteration": "murungai keerai",
+    "aliases": [
+      "drumstick leaves",
+      "moringa leaves",
+      "murunga keerai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "pasalai-keerai",
+    "canonical": "Pasalai keerai",
+    "tamil": "பசலைக்கீரை",
+    "transliteration": "pasalai keerai",
+    "aliases": [
+      "spinach",
+      "palak",
+      "pasalai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "manathakkali-keerai",
+    "canonical": "Manathakkali keerai",
+    "tamil": "மணத்தக்காளி கீரை",
+    "transliteration": "manathakkali keerai",
+    "aliases": [
+      "black nightshade",
+      "sukkuti keerai",
+      "manathakkali"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "siru-keerai",
+    "canonical": "Siru keerai",
+    "tamil": "சிறுகீரை",
+    "transliteration": "siru keerai",
+    "aliases": [
+      "tropical amaranth",
+      "sirukeerai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "thandu-keerai",
+    "canonical": "Thandu keerai",
+    "tamil": "தண்டுக்கீரை",
+    "transliteration": "thandu keerai",
+    "aliases": [
+      "amaranth stems",
+      "thandukeerai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "vendhaya-keerai",
+    "canonical": "Vendhaya keerai",
+    "tamil": "வெந்தயக் கீரை",
+    "transliteration": "vendhaya keerai",
+    "aliases": [
+      "fenugreek leaves",
+      "methi",
+      "vendhaya keerai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "karisalankanni-keerai",
+    "canonical": "Karisalankanni keerai",
+    "tamil": "கரிசலாங்கண்ணி",
+    "transliteration": "karisalankanni keerai",
+    "aliases": [
+      "bhringraj",
+      "karisalankani"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "pulicha-keerai",
+    "canonical": "Pulicha keerai",
+    "tamil": "புளிச்ச கீரை",
+    "transliteration": "pulicha keerai",
+    "aliases": [
+      "gongura",
+      "sorrel leaves"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "agathi-keerai",
+    "canonical": "Agathi keerai",
+    "tamil": "அகத்திக் கீரை",
+    "transliteration": "agathi keerai",
+    "aliases": [
+      "hummingbird tree leaves",
+      "agathikeerai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "vallarai-keerai",
+    "canonical": "Vallarai keerai",
+    "tamil": "வல்லாரை கீரை",
+    "transliteration": "vallarai keerai",
+    "aliases": [
+      "brahmi leaves",
+      "vallarai"
+    ],
+    "category": "vegetable"
+  },
+  {
+    "id": "mint-leaves",
+    "canonical": "Mint leaves",
+    "tamil": "புதினா",
+    "transliteration": "pudina",
+    "aliases": [
+      "mint"
+    ],
+    "category": "herb"
+  },
+  {
+    "id": "coriander-leaves",
+    "canonical": "Coriander leaves",
+    "tamil": "கொத்தமல்லி",
+    "transliteration": "kothamalli",
+    "aliases": [
+      "cilantro",
+      "dhania",
+      "kothamali"
+    ],
+    "category": "herb"
+  },
+  {
+    "id": "curry-leaves",
+    "canonical": "Curry leaves",
+    "tamil": "கறிவேப்பிலை",
+    "transliteration": "kariveppilai",
+    "aliases": [
+      "kadi patta",
+      "karuveppilai"
+    ],
+    "category": "herb"
+  },
+  {
+    "id": "garlic",
+    "canonical": "Garlic",
+    "tamil": "பூண்டு",
+    "transliteration": "poondu",
+    "aliases": [
+      "lahsun"
+    ],
+    "category": "herb"
+  },
+  {
+    "id": "ginger",
+    "canonical": "Ginger",
+    "tamil": "இஞ்சி",
+    "transliteration": "inji",
+    "aliases": [
+      "adrak"
+    ],
+    "category": "herb"
+  },
+  {
+    "id": "green-chilli",
+    "canonical": "Green chilli",
+    "tamil": "பச்சை மிளகாய்",
+    "transliteration": "pachai milagai",
+    "aliases": [
+      "hari mirch"
+    ],
+    "category": "herb"
+  },
+  {
+    "id": "dry-red-chilli",
+    "canonical": "Dry red chilli",
+    "tamil": "காய்ந்த மிளகாய்",
+    "transliteration": "kaintha milagai",
+    "aliases": [
+      "vatral",
+      "red chilli",
+      "lal mirch",
+      "vara milagai"
+    ],
+    "category": "herb"
+  },
+  {
+    "id": "chicken",
+    "canonical": "Chicken",
+    "tamil": "கோழி",
+    "transliteration": "kozhi",
+    "aliases": [
+      "murgh",
+      "chicken"
+    ],
+    "category": "protein"
+  },
+  {
+    "id": "country-chicken",
+    "canonical": "Country chicken",
+    "tamil": "நாட்டுக்கோழி",
+    "transliteration": "nattu kozhi",
+    "aliases": [
+      "nattukozhi",
+      "desi murgh"
+    ],
+    "category": "protein"
+  },
+  {
+    "id": "mutton",
+    "canonical": "Mutton",
+    "tamil": "ஆட்டிறைச்சி",
+    "transliteration": "aattiraichi",
+    "aliases": [
+      "goat meat",
+      "gosht",
+      "mutton"
+    ],
+    "category": "protein"
+  },
+  {
+    "id": "fish",
+    "canonical": "Fish",
+    "tamil": "மீன்",
+    "transliteration": "meen",
+    "aliases": [
+      "machli",
+      "fish"
+    ],
+    "category": "protein"
+  },
+  {
+    "id": "prawns",
+    "canonical": "Prawns",
+    "tamil": "இறால்",
+    "transliteration": "eral",
+    "aliases": [
+      "shrimp",
+      "jhinga"
+    ],
+    "category": "protein"
+  },
+  {
+    "id": "crab",
+    "canonical": "Crab",
+    "tamil": "நண்டு",
+    "transliteration": "nandu",
+    "aliases": [
+      "kekda"
+    ],
+    "category": "protein"
+  },
+  {
+    "id": "squid",
+    "canonical": "Squid",
+    "tamil": "கணவாய்",
+    "transliteration": "kanavai",
+    "aliases": [
+      "cuttlefish",
+      "calamari"
+    ],
+    "category": "protein"
+  },
+  {
+    "id": "egg",
+    "canonical": "Egg",
+    "tamil": "முட்டை",
+    "transliteration": "muttai",
+    "aliases": [
+      "anda"
+    ],
+    "category": "protein"
+  },
+  {
+    "id": "paneer",
+    "canonical": "Paneer",
+    "tamil": "பன்னீர்",
+    "transliteration": "paneer",
+    "aliases": [
+      "cottage cheese"
+    ],
+    "category": "protein"
+  },
+  {
+    "id": "tofu",
+    "canonical": "Tofu",
+    "tamil": "டோஃபு",
+    "transliteration": "tofu",
+    "aliases": [
+      "soya paneer"
+    ],
+    "category": "protein"
+  },
+  {
+    "id": "toor-dal",
+    "canonical": "Toor dal",
+    "tamil": "துவரம் பருப்பு",
+    "transliteration": "thuvaram paruppu",
+    "aliases": [
+      "arhar dal",
+      "tuvar dal",
+      "pigeon pea"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "moong-dal",
+    "canonical": "Moong dal",
+    "tamil": "பாசிப்பருப்பு",
+    "transliteration": "pasi paruppu",
+    "aliases": [
+      "yellow moong dal",
+      "mung dal",
+      "paasi paruppu"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "chana-dal",
+    "canonical": "Chana dal",
+    "tamil": "கடலைப்பருப்பு",
+    "transliteration": "kadalai paruppu",
+    "aliases": [
+      "bengal gram dal",
+      "kadala paruppu"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "urad-dal",
+    "canonical": "Urad dal",
+    "tamil": "உளுந்து",
+    "transliteration": "ulundu",
+    "aliases": [
+      "ulutham paruppu",
+      "black gram",
+      "white urad dal",
+      "ulundhu"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "masoor-dal",
+    "canonical": "Masoor dal",
+    "tamil": "மைசூர் பருப்பு",
+    "transliteration": "mysore paruppu",
+    "aliases": [
+      "red lentil",
+      "masoor dal"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "whole-green-gram",
+    "canonical": "Whole green gram",
+    "tamil": "பச்சைப் பயறு",
+    "transliteration": "pachai payaru",
+    "aliases": [
+      "green moong",
+      "sabut moong",
+      "pachai payaru"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "black-eyed-peas",
+    "canonical": "Black-eyed peas",
+    "tamil": "காராமணி",
+    "transliteration": "karamani",
+    "aliases": [
+      "cowpeas",
+      "thattai payaru",
+      "lobia"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "white-chickpea",
+    "canonical": "White chickpea",
+    "tamil": "வெள்ளை கொண்டைக்கடலை",
+    "transliteration": "vellai kondaikadalai",
+    "aliases": [
+      "kabuli chana",
+      "chhole",
+      "sundal kadalai"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "black-chickpea",
+    "canonical": "Black chickpea",
+    "tamil": "கருப்பு கொண்டைக்கடலை",
+    "transliteration": "karuppu kondaikadalai",
+    "aliases": [
+      "kala chana",
+      "desi chana",
+      "karuppu sundal"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "field-beans",
+    "canonical": "Field beans",
+    "tamil": "மொச்சை",
+    "transliteration": "mochai",
+    "aliases": [
+      "mochai kottai",
+      "val dal",
+      "hyacinth beans"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "horse-gram",
+    "canonical": "Horse gram",
+    "tamil": "கொள்ளு",
+    "transliteration": "kollu",
+    "aliases": [
+      "kulthi"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "rajma",
+    "canonical": "Rajma",
+    "tamil": "ராஜ்மா",
+    "transliteration": "rajma",
+    "aliases": [
+      "kidney beans"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "peanuts",
+    "canonical": "Peanuts",
+    "tamil": "வேர்க்கடலை",
+    "transliteration": "verkadalai",
+    "aliases": [
+      "groundnuts",
+      "mungfali",
+      "nilakadalai",
+      "kadalekai"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "dried-peas",
+    "canonical": "Dried peas",
+    "tamil": "பட்டாணி",
+    "transliteration": "pattani",
+    "aliases": [
+      "vatana",
+      "dried green peas",
+      "white peas",
+      "pacha pattani"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "roasted-gram",
+    "canonical": "Roasted gram",
+    "tamil": "பொட்டுக்கடலை",
+    "transliteration": "pottukadalai",
+    "aliases": [
+      "fried gram",
+      "chutney dal",
+      "porikadalai",
+      "bhuna chana"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "rice",
+    "canonical": "Rice",
+    "tamil": "அரிசி",
+    "transliteration": "arisi",
+    "aliases": [
+      "raw rice",
+      "pacharisi",
+      "chawal",
+      "white rice"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "parboiled-rice",
+    "canonical": "Parboiled rice",
+    "tamil": "புழுங்கல் அரிசி",
+    "transliteration": "puzhungal arisi",
+    "aliases": [
+      "boiled rice",
+      "ponni rice",
+      "puzhungal arisi"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "idli-rice",
+    "canonical": "Idli rice",
+    "tamil": "இட்லி அரிசி",
+    "transliteration": "idli arisi",
+    "aliases": [
+      "idli rice",
+      "parboiled idli rice"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "basmati-rice",
+    "canonical": "Basmati rice",
+    "tamil": "பாஸ்மதி அரிசி",
+    "transliteration": "basmati arisi",
+    "aliases": [
+      "basmati"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "seeraga-samba-rice",
+    "canonical": "Seeraga samba rice",
+    "tamil": "சீரக சம்பா அரிசி",
+    "transliteration": "seeraga samba arisi",
+    "aliases": [
+      "jeerasar",
+      "biryani rice",
+      "seeraga samba"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "aval",
+    "canonical": "Aval",
+    "tamil": "அவல்",
+    "transliteration": "aval",
+    "aliases": [
+      "flattened rice",
+      "poha",
+      "beaten rice"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "vermicelli",
+    "canonical": "Vermicelli",
+    "tamil": "சேமியா",
+    "transliteration": "semiya",
+    "aliases": [
+      "semiya"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "sevai",
+    "canonical": "Sevai",
+    "tamil": "சேவை",
+    "transliteration": "sevai",
+    "aliases": [
+      "santhakai",
+      "idiyappam strings",
+      "santhagai"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "sago",
+    "canonical": "Sago",
+    "tamil": "ஜவ்வரிசி",
+    "transliteration": "javvarisi",
+    "aliases": [
+      "sabudana",
+      "tapioca pearls",
+      "javarisi"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "noodles",
+    "canonical": "Noodles",
+    "tamil": "நூடுல்ஸ்",
+    "transliteration": "noodles",
+    "aliases": [
+      "hakka noodles"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "pasta",
+    "canonical": "Pasta",
+    "tamil": "பாஸ்தா",
+    "transliteration": "pasta",
+    "aliases": [
+      "macaroni",
+      "penne"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "bread",
+    "canonical": "Bread",
+    "tamil": "பிரெட்",
+    "transliteration": "bread",
+    "aliases": [
+      "sandwich bread",
+      "pav"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "kambu",
+    "canonical": "Kambu",
+    "tamil": "கம்பு",
+    "transliteration": "kambu",
+    "aliases": [
+      "pearl millet",
+      "bajra"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "ragi",
+    "canonical": "Ragi",
+    "tamil": "கேழ்வரகு",
+    "transliteration": "kezhvaragu",
+    "aliases": [
+      "finger millet",
+      "kelvaragu",
+      "nachni",
+      "ragi"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "thinai",
+    "canonical": "Thinai",
+    "tamil": "தினை",
+    "transliteration": "thinai",
+    "aliases": [
+      "foxtail millet",
+      "kangni"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "varagu",
+    "canonical": "Varagu",
+    "tamil": "வரகு",
+    "transliteration": "varagu",
+    "aliases": [
+      "kodo millet",
+      "kodra"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "samai",
+    "canonical": "Samai",
+    "tamil": "சாமை",
+    "transliteration": "samai",
+    "aliases": [
+      "little millet",
+      "kutki"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "kuthiraivali",
+    "canonical": "Kuthiraivali",
+    "tamil": "குதிரைவாலி",
+    "transliteration": "kuthiraivali",
+    "aliases": [
+      "barnyard millet",
+      "sanwa"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "cholam",
+    "canonical": "Cholam",
+    "tamil": "சோளம்",
+    "transliteration": "cholam",
+    "aliases": [
+      "sorghum",
+      "jowar"
+    ],
+    "category": "grain"
+  },
+  {
+    "id": "idli-batter",
+    "canonical": "Idli batter",
+    "tamil": "இட்லி மாவு",
+    "transliteration": "idli maavu",
+    "aliases": [
+      "idli flour",
+      "idli rice batter"
+    ],
+    "category": "flour"
+  },
+  {
+    "id": "dosa-batter",
+    "canonical": "Dosa batter",
+    "tamil": "தோசை மாவு",
+    "transliteration": "dosai maavu",
+    "aliases": [
+      "dosa flour",
+      "dosai batter"
+    ],
+    "category": "flour"
+  },
+  {
+    "id": "rice-flour",
+    "canonical": "Rice flour",
+    "tamil": "அரிசி மாவு",
+    "transliteration": "arisi maavu",
+    "aliases": [
+      "chawal ka atta",
+      "idiyappam flour",
+      "puttu flour"
+    ],
+    "category": "flour"
+  },
+  {
+    "id": "rava",
+    "canonical": "Rava",
+    "tamil": "ரவை",
+    "transliteration": "ravai",
+    "aliases": [
+      "semolina",
+      "sooji",
+      "suji"
+    ],
+    "category": "flour"
+  },
+  {
+    "id": "atta",
+    "canonical": "Atta",
+    "tamil": "கோதுமை மாவு",
+    "transliteration": "godhumai maavu",
+    "aliases": [
+      "wheat flour",
+      "whole wheat flour",
+      "chapati maavu"
+    ],
+    "category": "flour"
+  },
+  {
+    "id": "maida",
+    "canonical": "Maida",
+    "tamil": "மைதா",
+    "transliteration": "maida",
+    "aliases": [
+      "refined wheat flour",
+      "all purpose flour"
+    ],
+    "category": "flour"
+  },
+  {
+    "id": "kambu-flour",
+    "canonical": "Kambu flour",
+    "tamil": "கம்பு மாவு",
+    "transliteration": "kambu maavu",
+    "aliases": [
+      "pearl millet flour",
+      "bajra atta"
+    ],
+    "category": "flour"
+  },
+  {
+    "id": "ragi-flour",
+    "canonical": "Ragi flour",
+    "tamil": "கேழ்வரகு மாவு",
+    "transliteration": "ragi maavu",
+    "aliases": [
+      "finger millet flour",
+      "kezhvaragu maavu"
+    ],
+    "category": "flour"
+  },
+  {
+    "id": "besan",
+    "canonical": "Besan",
+    "tamil": "கடலை மாவு",
+    "transliteration": "kadalai maavu",
+    "aliases": [
+      "gram flour",
+      "chickpea flour",
+      "bajji maavu"
+    ],
+    "category": "flour"
+  },
+  {
+    "id": "wheat-rava",
+    "canonical": "Wheat rava",
+    "tamil": "கோதுமை ரவை",
+    "transliteration": "godhumai ravai",
+    "aliases": [
+      "samba rava",
+      "broken wheat",
+      "daliya"
+    ],
+    "category": "flour"
+  },
+  {
+    "id": "urad-dal-flour",
+    "canonical": "Urad dal flour",
+    "tamil": "உளுந்து மாவு",
+    "transliteration": "ulundu maavu",
+    "aliases": [
+      "black gram flour",
+      "ulutham maavu"
+    ],
+    "category": "flour"
+  },
+  {
+    "id": "roasted-gram-flour",
+    "canonical": "Roasted gram flour",
+    "tamil": "பொட்டுக்கடலை மாவு",
+    "transliteration": "pottukadalai maavu",
+    "aliases": [
+      "chutney dal flour",
+      "sattu",
+      "porikadalai maavu"
+    ],
+    "category": "flour"
+  }
+]
