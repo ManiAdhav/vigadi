@@ -637,6 +637,17 @@
     "category": "protein"
   },
   {
+    "id": "beef",
+    "canonical": "Beef",
+    "tamil": "மாட்டிறைச்சி",
+    "transliteration": "maattiraichi",
+    "aliases": [
+      "beef meat",
+      "gai maans"
+    ],
+    "category": "protein"
+  },
+  {
     "id": "fish",
     "canonical": "Fish",
     "tamil": "மீன்",
@@ -696,6 +707,18 @@
     "transliteration": "paneer",
     "aliases": [
       "cottage cheese"
+    ],
+    "category": "protein"
+  },
+  {
+    "id": "soya-chunks",
+    "canonical": "Soya chunks",
+    "tamil": "சோயா மட்டன்",
+    "transliteration": "soya mutton",
+    "aliases": [
+      "meal maker",
+      "soya nuggets",
+      "nutrela soya chunks"
     ],
     "category": "protein"
   },
@@ -777,6 +800,18 @@
       "green moong",
       "sabut moong",
       "pachai payaru"
+    ],
+    "category": "legume"
+  },
+  {
+    "id": "black-gram",
+    "canonical": "Black gram",
+    "tamil": "கருப்பு உளுந்து",
+    "transliteration": "karuppu ulundhu",
+    "aliases": [
+      "karuppu ulundu",
+      "whole black gram",
+      "sabut urad"
     ],
     "category": "legume"
   },

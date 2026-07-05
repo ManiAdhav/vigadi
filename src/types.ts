@@ -12,6 +12,7 @@ export interface CatalogDish {
   youtubeUrl: string | null;
   youtubeVideoId: string | null;
   dishType: string | null;
+  dishCategory?: string;
   spiceLevel: string | null;
   mainIngredients: string[];
   pairsWith: string[];
@@ -19,6 +20,14 @@ export interface CatalogDish {
   channelName: string | null;
   discoveredAt?: string;
   source?: string;
+}
+
+export interface UnfilledSlot {
+  slotIndex: number;
+  category: string;
+  options?: string[];
+  note?: string;
+  suggestion?: string;
 }
 
 export interface BuiltComboOption {
@@ -31,7 +40,19 @@ export interface BuiltComboOption {
   rationale: string;
   source?: "global_pool" | "gemini" | "rule_engine";
   popularCount?: number;
+  unfilledSlots?: UnfilledSlot[];
+  templatePreview?: string;
 }
+
+export type {
+  MealTemplate,
+  DishSlot,
+  DishCategory,
+  MealSlot,
+  DayType,
+  DaySettings,
+  BalanceTarget,
+} from "../../shared/mealTemplates";
 
 export interface Meal {
   id: string;

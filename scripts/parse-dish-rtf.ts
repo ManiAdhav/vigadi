@@ -46,7 +46,7 @@ export const INGREDIENT_ID_MAP: Record<string, string> = {
   "yam-elephant": "elephant-foot-yam",
 };
 
-const SKIP_IDS = new Set(["beef", "black-gram", "double-beans", "soya-chunks"]);
+const SKIP_IDS = new Set(["double-beans"]);
 
 function rtfToText(filePath: string): string {
   return execSync(`textutil -convert txt -stdout ${JSON.stringify(filePath)}`, {

@@ -2,6 +2,8 @@ import { buildIngredientSignature } from "./db/ingredientSignature";
 import { getPopularCombos } from "./db/globalCombos";
 import { getDishesByIds, getTasteProfile, getUserProfile, parseDishRow } from "./db";
 import { buildCombosFromCatalog, BuiltCombo, scoreDishForTaste, MIN_COMBOS, MAX_COMBOS } from "./comboBuilder";
+import { buildCombosFromTemplate, templateToRulesDescription } from "./mealTemplateBuilder";
+import { MealTemplate } from "../shared/mealTemplates";
 import { insertGenerationSession, insertComboCandidate } from "./db/events";
 
 const MIN_TASTE_SCORE = -5;
@@ -11,12 +13,16 @@ export async function buildCombosGlobalFirst(params: {
   ingredients: string[];
   rules: string;
   category: string;
+  template?: MealTemplate;
 }): Promise<{ combos: BuiltCombo[]; sessionId: string }> {
   const signature = buildIngredientSignature(params.ingredients);
   const profile = await getUserProfile(params.userId);
   const cityCode = profile?.city_code ?? null;
   const taste = await getTasteProfile(params.userId);
   const sessionId = `session-${Date.now()}`;
+  const rulesDescription = params.template
+    ? templateToRulesDescription(params.template)
+    : params.rules;
 
   const globalHits = await getPopularCombos({
     ingredientSignature: signature,
@@ -55,11 +61,20 @@ export async function buildCombosGlobalFirst(params: {
   let combos = [...globalCombos];
 
   if (combos.length < MAX_COMBOS) {
-    const generated = await buildCombosFromCatalog({
-      ...params,
-      excludeDishIds: [...usedDishIds],
-      maxCombos: MAX_COMBOS - combos.length,
-    });
+    const generated = params.template
+      ? await buildCombosFromTemplate({
+          userId: params.userId,
+          ingredients: params.ingredients,
+          template: params.template,
+          category: params.category,
+          excludeDishIds: [...usedDishIds],
+          maxCombos: MAX_COMBOS - combos.length,
+        })
+      : await buildCombosFromCatalog({
+          ...params,
+          excludeDishIds: [...usedDishIds],
+          maxCombos: MAX_COMBOS - combos.length,
+        });
     for (const combo of generated) {
       combo.dishIds.forEach((id) => usedDishIds.add(id));
     }
@@ -67,11 +82,20 @@ export async function buildCombosGlobalFirst(params: {
   }
 
   if (combos.length < MIN_COMBOS) {
-    const extra = await buildCombosFromCatalog({
-      ...params,
-      excludeDishIds: [],
-      maxCombos: MIN_COMBOS - combos.length,
-    });
+    const extra = params.template
+      ? await buildCombosFromTemplate({
+          userId: params.userId,
+          ingredients: params.ingredients,
+          template: params.template,
+          category: params.category,
+          excludeDishIds: [],
+          maxCombos: MIN_COMBOS - combos.length,
+        })
+      : await buildCombosFromCatalog({
+          ...params,
+          excludeDishIds: [],
+          maxCombos: MIN_COMBOS - combos.length,
+        });
     combos.push(...extra);
   }
 
@@ -82,7 +106,7 @@ export async function buildCombosGlobalFirst(params: {
     userId: params.userId,
     ingredientSignature: signature,
     ingredients: params.ingredients,
-    comboRules: params.rules,
+    comboRules: rulesDescription,
     category: params.category,
     slotsRequested: MAX_COMBOS,
     slotsFromGlobal: globalCombos.length,

@@ -15,7 +15,19 @@ import {
   updateUserCity,
   searchIngredients,
   resolveIngredientList,
+  getMealTemplates,
+  upsertMealTemplate,
+  deleteMealTemplate,
+  duplicateMealTemplate,
+  getDaySettings,
+  saveDaySettings,
 } from "./server/db";
+import {
+  getDayTypeForDate,
+  mealSlotFromUi,
+  pickAutoTemplate,
+  templateMatchesContext,
+} from "./shared/mealTemplates";
 import { discoverAndStoreIngredients } from "./server/discovery";
 import { combosToMeals } from "./server/comboBuilder";
 import { buildCombosGlobalFirst } from "./server/globalComboService";
@@ -789,14 +801,30 @@ app.get("/api/catalog/dishes", async (req, res) => {
 
 // --- Phase B: Build 3–5 combos from catalog + user rules ---
 app.post("/api/combos/build", async (req, res) => {
-  const { ingredients, rules, category, userId, username } = req.body;
+  const { ingredients, rules, category, userId, username, templateId, template } = req.body;
   if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
     return res.status(400).json({ error: "Provide ingredients to build combos." });
   }
 
   const uid = userId || "default-user";
-  const activeRules = rules || "Tamil Nadu rules: 1 Kulambu, 2 Sides";
   await ensureUserProfile(uid, username || "Guest");
+
+  const templates = await getMealTemplates(uid);
+  let activeTemplate = template as typeof templates[0] | undefined;
+  if (templateId && !activeTemplate) {
+    activeTemplate = templates.find((t) => t.id === templateId);
+  }
+
+  const mealSlot = mealSlotFromUi((category || "Lunch") as "Breakfast" | "Lunch" | "Dinner");
+  if (!activeTemplate) {
+    const daySettings = await getDaySettings(uid);
+    const dayType = getDayTypeForDate(new Date(), daySettings);
+    activeTemplate = pickAutoTemplate(templates, mealSlot, dayType);
+  }
+
+  const activeRules = activeTemplate
+    ? `${activeTemplate.name}: ${activeTemplate.slots.map((s) => `${s.count} ${s.category}`).join(", ")}`
+    : rules || "Tamil Nadu rules: 1 Kulambu, 2 Sides";
   await updateUserComboRules(uid, activeRules);
 
   try {
@@ -805,6 +833,7 @@ app.post("/api/combos/build", async (req, res) => {
       ingredients,
       rules: activeRules,
       category: category || "Lunch",
+      template: activeTemplate,
     });
 
     if (built.length === 0) {
@@ -829,7 +858,7 @@ app.post("/api/combos/build", async (req, res) => {
     const meals = combosToMeals(built, category || "Lunch");
     meals.forEach((meal) => INITIAL_MEALS.unshift(meal as any));
 
-    res.json({ combos: built, meals, sessionId });
+    res.json({ combos: built, meals, sessionId, template: activeTemplate });
   } catch (error: any) {
     console.error("Combo build failed:", error);
     res.status(500).json({ error: "Failed to build meal combos from catalog." });
@@ -884,6 +913,69 @@ app.patch("/api/profile/:userId", async (req, res) => {
   if (comboRules) await updateUserComboRules(uid, comboRules);
   const profile = await getUserProfile(uid);
   res.json({ profile });
+});
+
+// --- Meal templates ---
+app.get("/api/templates/:userId", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  await ensureUserProfile(uid, "Guest");
+  const templates = await getMealTemplates(uid);
+  const daySettings = await getDaySettings(uid);
+  res.json({ templates, daySettings });
+});
+
+app.get("/api/templates/:userId/match", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  const mealSlot = (req.query.mealSlot as string) || "lunch";
+  await ensureUserProfile(uid, "Guest");
+  const templates = await getMealTemplates(uid);
+  const daySettings = await getDaySettings(uid);
+  const dayType = getDayTypeForDate(new Date(), daySettings);
+  const slot = mealSlot.toLowerCase() as "breakfast" | "lunch" | "dinner";
+  const matching = templates.filter((t) => templateMatchesContext(t, slot, dayType));
+  const auto = pickAutoTemplate(templates, slot, dayType);
+  res.json({ templates: matching, auto, dayType, daySettings });
+});
+
+app.post("/api/templates/:userId", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  const { template } = req.body;
+  if (!template?.name || !template?.slots?.length) {
+    return res.status(400).json({ error: "Template name and at least one slot required." });
+  }
+  await ensureUserProfile(uid, "Guest");
+  const templates = await upsertMealTemplate(uid, template);
+  res.json({ templates });
+});
+
+app.delete("/api/templates/:userId/:templateId", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  const templates = await deleteMealTemplate(uid, req.params.templateId);
+  res.json({ templates });
+});
+
+app.post("/api/templates/:userId/:templateId/duplicate", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  const templates = await duplicateMealTemplate(uid, req.params.templateId);
+  res.json({ templates });
+});
+
+app.put("/api/day-settings/:userId", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  await ensureUserProfile(uid, "Guest");
+  const settings = await saveDaySettings(uid, req.body);
+  res.json({ daySettings: settings });
+});
+
+app.put("/api/day-settings/:userId/override", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  const { isHoliday, date } = req.body;
+  await ensureUserProfile(uid, "Guest");
+  const current = await getDaySettings(uid);
+  const targetDate = date || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  current.holiday_override = { date: targetDate, is_holiday: !!isHoliday };
+  const settings = await saveDaySettings(uid, current);
+  res.json({ daySettings: settings });
 });
 
 app.get("/api/taste/:userId", async (req, res) => {

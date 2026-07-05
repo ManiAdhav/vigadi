@@ -15,7 +15,8 @@
     "migrate": "tsx scripts/run-migrations.ts",
     "seed:ingredients": "tsx scripts/seed-ingredients.ts",
     "parse:dishes": "tsx scripts/parse-dish-rtf.ts",
-    "seed:dishes": "tsx scripts/seed-dishes.ts"
+    "seed:dishes": "tsx scripts/seed-dishes.ts",
+    "sync:dishes": "tsx scripts/sync-dish-batch.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

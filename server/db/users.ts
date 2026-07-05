@@ -6,6 +6,7 @@ import {
   memoryGetTasteProfile,
   memorySaveTasteProfile,
 } from "./memoryStore";
+import type { DaySettings, MealTemplate } from "../../shared/mealTemplates";
 
 export interface TasteProfile {
   liked_dish_types: Record<string, number>;
@@ -24,6 +25,8 @@ export interface UserProfileRow {
   combo_rules: string;
   taste_profile: TasteProfile | string;
   city_code: string | null;
+  meal_templates?: MealTemplate[];
+  day_settings?: DaySettings;
 }
 
 const DEFAULT_TASTE: TasteProfile = {

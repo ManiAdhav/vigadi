@@ -1,6 +1,13 @@
 import { normalizeIngredient } from "./ingredientSignature";
 import type { DishRow } from "./catalog";
 import type { TasteProfile, UserProfileRow } from "./users";
+import {
+  DaySettings,
+  DEFAULT_DAY_SETTINGS,
+  MealTemplate,
+  REGION_PRESET_TEMPLATES,
+  resolveDishCategory,
+} from "../../shared/mealTemplates";
 
 const DEFAULT_TASTE: TasteProfile = {
   liked_dish_types: {},
@@ -37,6 +44,7 @@ export function memoryInsertDish(dish: {
   youtubeUrl?: string;
   youtubeVideoId?: string;
   dishType?: string;
+  dishCategory?: string;
   spiceLevel?: string;
   mainIngredients?: string[];
   pairsWith?: string[];
@@ -58,6 +66,8 @@ export function memoryInsertDish(dish: {
     youtube_url: dish.youtubeUrl ?? null,
     youtube_video_id: dish.youtubeVideoId ?? null,
     dish_type: dish.dishType ?? null,
+    dish_category:
+      dish.dishCategory ?? resolveDishCategory(dish.dishType, dish.name),
     spice_level: dish.spiceLevel ?? null,
     main_ingredients: dish.mainIngredients ?? [],
     pairs_with: dish.pairsWith ?? ["Rice"],
@@ -115,6 +125,8 @@ export function memoryEnsureUserProfile(userId: string, username: string): void 
     combo_rules: "Tamil Nadu rules: 1 Kulambu, 2 Sides",
     taste_profile: { ...DEFAULT_TASTE },
     city_code: null,
+    meal_templates: [...REGION_PRESET_TEMPLATES],
+    day_settings: { ...DEFAULT_DAY_SETTINGS },
   });
 }
 
@@ -140,4 +152,25 @@ export function memoryGetTasteProfile(userId: string): TasteProfile {
 export function memorySaveTasteProfile(userId: string, taste: TasteProfile): void {
   memoryEnsureUserProfile(userId, "Guest");
   userProfiles.get(userId)!.taste_profile = taste;
+}
+
+export function memoryGetMealTemplates(userId: string): MealTemplate[] {
+  memoryEnsureUserProfile(userId, "Guest");
+  const profile = userProfiles.get(userId)!;
+  return profile.meal_templates?.length ? profile.meal_templates : [...REGION_PRESET_TEMPLATES];
+}
+
+export function memorySaveMealTemplates(userId: string, templates: MealTemplate[]): void {
+  memoryEnsureUserProfile(userId, "Guest");
+  userProfiles.get(userId)!.meal_templates = templates;
+}
+
+export function memoryGetDaySettings(userId: string): DaySettings {
+  memoryEnsureUserProfile(userId, "Guest");
+  return userProfiles.get(userId)!.day_settings ?? { ...DEFAULT_DAY_SETTINGS };
+}
+
+export function memorySaveDaySettings(userId: string, settings: DaySettings): void {
+  memoryEnsureUserProfile(userId, "Guest");
+  userProfiles.get(userId)!.day_settings = settings;
 }

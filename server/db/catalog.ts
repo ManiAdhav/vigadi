@@ -1,6 +1,7 @@
 import { query, isDatabaseConfigured } from "./pool";
 import { normalizeIngredient } from "./ingredientSignature";
 import { resolveToCanonical, resolveIngredient } from "./ingredientResolver";
+import { resolveDishCategory } from "../../shared/mealTemplates";
 import {
   memoryUpsertIngredient,
   memoryInsertDish,
@@ -19,6 +20,7 @@ export interface DishRow {
   youtube_url: string | null;
   youtube_video_id: string | null;
   dish_type: string | null;
+  dish_category: string | null;
   spice_level: string | null;
   main_ingredients: string | unknown[] | null;
   pairs_with: string | unknown[] | null;
@@ -44,6 +46,8 @@ function parseJsonArray(value: string | unknown[] | null | undefined): unknown[]
 }
 
 export function parseDishRow(row: DishRow) {
+  const dishCategory =
+    row.dish_category ?? resolveDishCategory(row.dish_type, row.name);
   return {
     id: row.id,
     ingredientName: row.ingredient_name,
@@ -51,6 +55,7 @@ export function parseDishRow(row: DishRow) {
     youtubeUrl: row.youtube_url,
     youtubeVideoId: row.youtube_video_id,
     dishType: row.dish_type,
+    dishCategory,
     spiceLevel: row.spice_level,
     mainIngredients: parseJsonArray(row.main_ingredients) as string[],
     pairsWith: (parseJsonArray(row.pairs_with).length ? parseJsonArray(row.pairs_with) : ["Rice"]) as string[],
@@ -93,6 +98,7 @@ export async function insertDish(dish: {
   youtubeUrl?: string;
   youtubeVideoId?: string;
   dishType?: string;
+  dishCategory?: string;
   spiceLevel?: string;
   mainIngredients?: string[];
   pairsWith?: string[];
@@ -104,9 +110,9 @@ export async function insertDish(dish: {
   try {
     const result = await query<{ id: number }>(
       `INSERT INTO dishes (
-        ingredient_id, name, youtube_url, youtube_video_id, dish_type, spice_level,
+        ingredient_id, name, youtube_url, youtube_video_id, dish_type, dish_category, spice_level,
         main_ingredients, pairs_with, description, channel_name, source
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12)
       ON CONFLICT (ingredient_id, name) DO NOTHING
       RETURNING id`,
       [
@@ -115,6 +121,8 @@ export async function insertDish(dish: {
         dish.youtubeUrl ?? null,
         dish.youtubeVideoId ?? null,
         dish.dishType ?? null,
+        dish.dishCategory ??
+          resolveDishCategory(dish.dishType, dish.name),
         dish.spiceLevel ?? null,
         JSON.stringify(dish.mainIngredients ?? []),
         JSON.stringify(dish.pairsWith ?? ["Rice"]),

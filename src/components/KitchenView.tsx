@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   X,
   ChefHat,
@@ -8,9 +8,13 @@ import {
   ThumbsUp,
   CheckCircle2,
   RefreshCw,
+  Settings2,
+  Sparkles,
 } from "lucide-react";
-import { BuiltComboOption, Meal } from "../types";
+import { BuiltComboOption, Meal, MealTemplate } from "../types";
+import { formatTemplatePreview, mealSlotFromUi } from "../../shared/mealTemplates";
 import IngredientAutocomplete from "./IngredientAutocomplete";
+import TemplateBuilder from "./TemplateBuilder";
 
 interface KitchenViewProps {
   onSelectMeal: (meal: Meal) => void;
@@ -36,9 +40,14 @@ function getUsername() {
 export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: KitchenViewProps) {
   const [tags, setTags] = useState<string[]>(["Potato", "Fish", "Chicken", "Tomato"]);
   const [selectedSlot, setSelectedSlot] = useState<"Breakfast" | "Lunch" | "Dinner">("Lunch");
-  const [customRules, setCustomRules] = useState(
-    () => localStorage.getItem("vigadi_custom_rules") || "Tamil Nadu rules: 1 Kulambu, 2 Sides"
-  );
+
+  const [templates, setTemplates] = useState<MealTemplate[]>([]);
+  const [matchingTemplates, setMatchingTemplates] = useState<MealTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [autoTemplateId, setAutoTemplateId] = useState<string | null>(null);
+  const [dayType, setDayType] = useState<string>("school_day");
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [tomorrowIsHoliday, setTomorrowIsHoliday] = useState(false);
 
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isBuilding, setIsBuilding] = useState(false);
@@ -50,10 +59,34 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
   const [tasteSummaries, setTasteSummaries] = useState<string[]>([]);
 
   const activeTags = tags.filter((t) => t.toLowerCase() !== "rice");
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
 
-  const applyCatalogResponse = (data: {
-    totalDishes?: number;
-  }) => {
+  const loadTemplates = useCallback(async (slot = selectedSlot) => {
+    try {
+      const mealSlot = mealSlotFromUi(slot);
+      const [allRes, matchRes] = await Promise.all([
+        fetch(`/api/templates/${getUserId()}`),
+        fetch(`/api/templates/${getUserId()}/match?mealSlot=${encodeURIComponent(mealSlot)}`),
+      ]);
+      if (allRes.ok) {
+        const allData = await allRes.json();
+        setTemplates(allData.templates || []);
+      }
+      if (matchRes.ok) {
+        const data = await matchRes.json();
+        setMatchingTemplates(data.templates || []);
+        setDayType(data.dayType || "school_day");
+        if (data.auto?.id) {
+          setAutoTemplateId(data.auto.id);
+          setSelectedTemplateId((prev) => prev ?? data.auto.id);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [selectedSlot]);
+
+  const applyCatalogResponse = (data: { totalDishes?: number }) => {
     setCatalogTotal(data.totalDishes || 0);
   };
 
@@ -76,7 +109,12 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
   useEffect(() => {
     fetchTasteProfile();
     loadCatalogFromDb(activeTags);
+    loadTemplates();
   }, []);
+
+  useEffect(() => {
+    loadTemplates(selectedSlot);
+  }, [selectedSlot, loadTemplates]);
 
   const fetchTasteProfile = async () => {
     try {
@@ -97,6 +135,53 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
 
   const handleRemoveTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
 
+  const saveTemplate = async (template: MealTemplate) => {
+    const res = await fetch(`/api/templates/${getUserId()}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setTemplates(data.templates || []);
+      setSelectedTemplateId(template.id);
+      await loadTemplates(selectedSlot);
+    }
+  };
+
+  const duplicateTemplate = async (templateId: string) => {
+    const res = await fetch(`/api/templates/${getUserId()}/${templateId}/duplicate`, {
+      method: "POST",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setTemplates(data.templates || []);
+    }
+  };
+
+  const deleteTemplate = async (templateId: string) => {
+    const res = await fetch(`/api/templates/${getUserId()}/${templateId}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setTemplates(data.templates || []);
+      if (selectedTemplateId === templateId) setSelectedTemplateId(null);
+      await loadTemplates(selectedSlot);
+    }
+  };
+
+  const toggleTomorrowHoliday = async () => {
+    const next = !tomorrowIsHoliday;
+    setTomorrowIsHoliday(next);
+    await fetch(`/api/day-settings/${getUserId()}/override`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isHoliday: next }),
+    });
+    await loadTemplates(selectedSlot);
+  };
+
   const buildCombosFromCatalog = async () => {
     setIsBuilding(true);
     setBuildError(null);
@@ -109,7 +194,7 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
         body: JSON.stringify({
           ingredients: activeTags,
           category: selectedSlot,
-          rules: customRules,
+          templateId: selectedTemplateId,
           userId: getUserId(),
           username: getUsername(),
         }),
@@ -120,6 +205,7 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
       }
       const data = await res.json();
       setBuiltCombos(data.combos || []);
+      if (data.template?.id) setSelectedTemplateId(data.template.id);
       if (data.meals?.length) onSelectCreatedMeals(data.meals);
     } catch (err: any) {
       setBuildError(err.message || "Could not build combos from catalog.");
@@ -212,6 +298,9 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
   };
 
   const isWorking = isDiscovering || isBuilding;
+  const chipsToShow = matchingTemplates.length > 0 ? matchingTemplates : templates.filter((t) =>
+    t.meal_slots.includes(mealSlotFromUi(selectedSlot))
+  );
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -266,21 +355,68 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-mono uppercase tracking-wider text-espresso/50 font-bold">Combo rules</label>
-          <select
-            value={customRules}
-            onChange={(e) => {
-              setCustomRules(e.target.value);
-              localStorage.setItem("vigadi_custom_rules", e.target.value);
-            }}
-            className="w-full bg-[#F1F3ED] border border-matcha/30 px-3 py-2.5 rounded-xl text-xs font-semibold text-espresso cursor-pointer"
-          >
-            <option value="Tamil Nadu rules: 1 Kulambu, 2 Sides">1 Kulambu + 2 Sides (Tamil Nadu)</option>
-            <option value="Kerala style: 1 Thoran, 1 Curry">1 Curry + 1 Thoran (Kerala)</option>
-            <option value="Classic homestyle: 1 Gravy, 1 Dry fry">1 Gravy + 1 Dry fry</option>
-            <option value="High protein: 1 main source, 1 boiled starch, minimal oil">High protein plate</option>
-          </select>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-mono uppercase tracking-wider text-espresso/50 font-bold">
+              Meal template
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowTemplateManager(true)}
+              className="text-[10px] font-mono uppercase text-bakedclay font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <Settings2 className="w-3 h-3" />
+              Manage
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {chipsToShow.map((tpl) => {
+              const isSelected = selectedTemplateId === tpl.id;
+              const isAuto = autoTemplateId === tpl.id;
+              return (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => setSelectedTemplateId(tpl.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold cursor-pointer border ${
+                    isSelected
+                      ? "bg-espresso text-cream border-espresso"
+                      : "bg-[#F1F3ED] text-espresso/80 border-matcha/20"
+                  }`}
+                >
+                  {isAuto && isSelected && (
+                    <span className="inline-flex items-center gap-0.5 text-[8px] font-mono uppercase bg-[#2E9D70] text-white px-1.5 py-0.5 rounded-full">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      Auto
+                    </span>
+                  )}
+                  {tpl.name}
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedTemplate && (
+            <p className="text-[11px] text-espresso/60 bg-[#F1F3ED] rounded-lg px-3 py-2">
+              {formatTemplatePreview(selectedTemplate)}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-[9px] font-mono uppercase text-espresso/40">
+              Today: {dayType.replace(/_/g, " ")}
+            </span>
+            <button
+              type="button"
+              onClick={toggleTomorrowHoliday}
+              className={`text-[9px] font-mono uppercase font-bold cursor-pointer ${
+                tomorrowIsHoliday ? "text-bakedclay" : "text-espresso/50"
+              }`}
+            >
+              {tomorrowIsHoliday ? "Tomorrow: holiday ✓" : "Tomorrow is a holiday"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -364,6 +500,11 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
                             Popular · {combo.popularCount} picks
                           </span>
                         )}
+                        {combo.templatePreview && (
+                          <span className="text-[9px] bg-matcha/30 text-espresso/70 px-2 py-0.5 rounded-full font-mono">
+                            {combo.templatePreview}
+                          </span>
+                        )}
                       </div>
                       <h4 className="font-display font-bold text-espresso text-md">{combo.name}</h4>
                       <p className="text-[11px] text-espresso/60 mt-0.5">{combo.rationale}</p>
@@ -371,13 +512,26 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
                     {isSelected && <CheckCircle2 className="w-5 h-5 text-[#2E9D70] shrink-0" />}
                   </div>
 
+                  {combo.unfilledSlots && combo.unfilledSlots.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 space-y-1">
+                      <p className="text-[9px] font-mono uppercase text-amber-800 font-bold">Unfilled slots</p>
+                      {combo.unfilledSlots.map((slot, i) => (
+                        <p key={i} className="text-[11px] text-amber-900">
+                          {slot.suggestion || `Need more ${slot.category} dishes`}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="space-y-1.5">
                     {combo.dishes.map((dish) => (
                       <div key={dish.id} className="flex items-center justify-between py-1.5 border-b border-matcha/10 last:border-0">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#2E9D70] shrink-0" />
                           <span className="text-xs font-medium text-espresso truncate">{dish.name}</span>
-                          <span className="text-[9px] text-espresso/40 font-mono shrink-0">({dish.dishType})</span>
+                          <span className="text-[9px] text-espresso/40 font-mono shrink-0">
+                            ({dish.dishCategory || dish.dishType})
+                          </span>
                         </div>
                         {dish.youtubeUrl && (
                           <a href={dish.youtubeUrl} target="_blank" rel="noreferrer" className="text-red-600 shrink-0">
@@ -409,7 +563,6 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
         )}
       </div>
 
-      {/* Taste profile learned */}
       {tasteSummaries.length > 0 && (
         <div className="bg-sage/20 border border-sage/40 p-4 rounded-2xl space-y-2">
           <h4 className="text-[10px] font-mono uppercase text-sage font-bold">Your learned taste</h4>
@@ -426,6 +579,19 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
           <ChefHat className="w-8 h-8 text-espresso/30 mx-auto mb-2" />
           <p className="text-xs font-medium text-espresso/70">Add ingredients and tap Discover dishes to get your menu.</p>
         </div>
+      )}
+
+      {showTemplateManager && (
+        <TemplateBuilder
+          templates={templates}
+          onSave={saveTemplate}
+          onDuplicate={duplicateTemplate}
+          onDelete={deleteTemplate}
+          onClose={() => {
+            setShowTemplateManager(false);
+            loadTemplates(selectedSlot);
+          }}
+        />
       )}
     </div>
   );
