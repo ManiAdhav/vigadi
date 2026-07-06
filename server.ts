@@ -47,6 +47,17 @@ dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+const BUILD_SHA =
+  process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ||
+  process.env.GIT_COMMIT?.slice(0, 7) ||
+  "dev";
+
+app.use((req, res, next) => {
+  if (req.hostname === "vigadi.in") {
+    return res.redirect(301, `https://www.vigadi.in${req.originalUrl}`);
+  }
+  next();
+});
 
 // Robust helper to dry-clean the response text before passing to JSON.parse
 function cleanAndParseJson(text: string): any {
@@ -343,6 +354,14 @@ function getGeminiClient(): GoogleGenAI | null {
 }
 
 // 1. API: Get meals library
+app.get("/api/version", (_req, res) => {
+  res.json({
+    version: BUILD_SHA,
+    deployedAt: process.env.RAILWAY_DEPLOYMENT_ID ? new Date().toISOString() : undefined,
+    features: ["meal-templates", "optional-rice", "template-driven-meal-slot"],
+  });
+});
+
 app.get("/api/meals", (req, res) => {
   res.json({ meals: INITIAL_MEALS });
 });
@@ -1094,9 +1113,10 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist", "client");
-    app.use(express.static(distPath, { index: false }));
+    app.use(express.static(distPath, { index: false, maxAge: "1h" }));
     app.get("*", (req, res, next) => {
       if (req.path.startsWith("/api")) return next();
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
