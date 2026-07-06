@@ -14,7 +14,7 @@ import {
 interface TemplateBuilderProps {
   templates: MealTemplate[];
   editing?: MealTemplate | null;
-  onSave: (template: MealTemplate) => void;
+  onSave: (template: MealTemplate) => Promise<boolean>;
   onDuplicate: (templateId: string) => void;
   onDelete: (templateId: string) => void;
   onClose: () => void;
@@ -58,6 +58,8 @@ export default function TemplateBuilder({
   const [customDayType, setCustomDayType] = useState("");
   const [showBalance, setShowBalance] = useState(!!draft.balance_target);
   const [listMode, setListMode] = useState(!editing);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const preview = useMemo(() => formatTemplatePreview(draft), [draft]);
 
@@ -120,10 +122,22 @@ export default function TemplateBuilder({
     }));
   };
 
-  const handleSave = () => {
-    if (!draft.name.trim() || draft.slots.length === 0) return;
-    onSave({ ...draft, name: draft.name.trim() });
-    setListMode(true);
+  const handleSave = async () => {
+    if (!draft.name.trim() || draft.slots.length === 0 || isSaving) return;
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const ok = await onSave({ ...draft, name: draft.name.trim() });
+      if (ok) {
+        onClose();
+      } else {
+        setSaveError("Could not save template. Please try again.");
+      }
+    } catch {
+      setSaveError("Could not save template. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (listMode && !editing) {
@@ -416,21 +430,26 @@ export default function TemplateBuilder({
           )}
         </div>
 
+        {saveError && (
+          <div className="bg-red-50 border border-red-200 text-xs text-red-700 p-3 rounded-xl">{saveError}</div>
+        )}
+
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => (editing ? onClose() : setListMode(true))}
-            className="flex-1 py-3 rounded-xl border border-matcha text-xs font-bold text-espresso cursor-pointer"
+            disabled={isSaving}
+            className="flex-1 py-3 rounded-xl border border-matcha text-xs font-bold text-espresso cursor-pointer disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSave}
-            disabled={!draft.name.trim()}
+            disabled={!draft.name.trim() || isSaving}
             className="flex-1 py-3 rounded-xl bg-[#2E9D70] text-white text-xs font-bold disabled:opacity-50 cursor-pointer"
           >
-            Save template
+            {isSaving ? "Saving…" : "Save template"}
           </button>
         </div>
       </div>

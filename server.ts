@@ -943,9 +943,14 @@ app.post("/api/templates/:userId", async (req, res) => {
   if (!template?.name || !template?.slots?.length) {
     return res.status(400).json({ error: "Template name and at least one slot required." });
   }
-  await ensureUserProfile(uid, "Guest");
-  const templates = await upsertMealTemplate(uid, template);
-  res.json({ templates });
+  try {
+    await ensureUserProfile(uid, "Guest");
+    const templates = await upsertMealTemplate(uid, template);
+    res.json({ templates });
+  } catch (error: any) {
+    console.error("Template save failed:", error);
+    res.status(500).json({ error: error.message || "Failed to save template." });
+  }
 });
 
 app.delete("/api/templates/:userId/:templateId", async (req, res) => {

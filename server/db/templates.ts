@@ -70,10 +70,13 @@ export async function saveDaySettings(userId: string, settings: DaySettings): Pr
 }
 
 export async function upsertMealTemplate(userId: string, template: MealTemplate): Promise<MealTemplate[]> {
-  const templates = await getMealTemplates(userId);
+  let templates = await getMealTemplates(userId);
   const idx = templates.findIndex((t) => t.id === template.id);
-  if (idx >= 0) templates[idx] = template;
-  else templates.push(template);
+  if (idx >= 0) {
+    templates[idx] = template;
+  } else {
+    templates = [...templates, template];
+  }
   await saveMealTemplates(userId, templates);
   return templates;
 }
