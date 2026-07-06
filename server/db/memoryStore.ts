@@ -112,6 +112,21 @@ export function memoryGetDishById(id: number): DishRow | undefined {
   return dishes.find((d) => d.id === id);
 }
 
+export function memorySearchDishes(queryText: string, limit = 10): DishRow[] {
+  const q = queryText.toLowerCase().trim();
+  if (!q) return [];
+  return dishes
+    .filter((d) => d.name.toLowerCase().includes(q))
+    .sort((a, b) => {
+      const aStarts = a.name.toLowerCase().startsWith(q);
+      const bStarts = b.name.toLowerCase().startsWith(q);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, limit);
+}
+
 export function memoryEnsureUserProfile(userId: string, username: string): void {
   const existing = userProfiles.get(userId);
   if (existing) {

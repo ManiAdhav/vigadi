@@ -35,11 +35,28 @@ function getDishCategory(dish: DishRow): DishCategory {
 }
 
 function dishesMatchingSlot(allDishes: DishRow[], slot: DishSlot, usedIds: Set<number>): DishRow[] {
+  if (slot.dishId) {
+    const pinned = allDishes.find((d) => d.id === slot.dishId && !usedIds.has(d.id));
+    return pinned ? [pinned] : [];
+  }
+  if (slot.dishName?.trim()) {
+    const needle = slot.dishName.trim().toLowerCase();
+    const named = allDishes.filter(
+      (d) =>
+        !usedIds.has(d.id) &&
+        (d.name.toLowerCase().includes(needle) || needle.includes(d.name.toLowerCase())) &&
+        slotAcceptsCategory(slot, getDishCategory(d))
+    );
+    if (named.length > 0) return named;
+  }
   return allDishes.filter((d) => !usedIds.has(d.id) && slotAcceptsCategory(slot, getDishCategory(d)));
 }
 
 function suggestForSlot(slot: DishSlot, available: DishRow[]): string | undefined {
   if (available.length > 0) return undefined;
+  if (slot.dishName) {
+    return `Add ingredients for "${slot.dishName}" or discover dishes first`;
+  }
   const label = slot.options?.length
     ? [slot.category, ...slot.options].join(" or ")
     : slot.category;

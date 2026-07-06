@@ -11,6 +11,7 @@ import {
   memoryGetDishesByIds,
   memoryGetIngredientByName,
   memoryGetDishById,
+  memorySearchDishes,
 } from "./memoryStore";
 
 export interface DishRow {
@@ -219,6 +220,24 @@ export async function getDishesByIds(ids: number[]): Promise<DishRow[]> {
     `SELECT d.*, i.name as ingredient_name FROM dishes d
      JOIN ingredients i ON d.ingredient_id = i.id WHERE d.id IN (${placeholders})`,
     ids
+  );
+  return result.rows;
+}
+
+export async function searchDishes(queryText: string, limit = 10): Promise<DishRow[]> {
+  const q = queryText.trim();
+  if (!q) return [];
+  if (!isDatabaseConfigured()) return memorySearchDishes(q, limit);
+  const pattern = `%${q}%`;
+  const prefix = `${q}%`;
+  const result = await query<DishRow>(
+    `SELECT d.*, i.name as ingredient_name
+     FROM dishes d
+     JOIN ingredients i ON d.ingredient_id = i.id
+     WHERE d.name ILIKE $1
+     ORDER BY CASE WHEN d.name ILIKE $2 THEN 0 ELSE 1 END, d.name
+     LIMIT $3`,
+    [pattern, prefix, limit]
   );
   return result.rows;
 }

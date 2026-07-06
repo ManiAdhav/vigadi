@@ -19,6 +19,9 @@ export interface DishSlot {
   note?: string;
   /** Cook once and reuse across meals in this template */
   reuse?: "all_meals" | MealSlot;
+  /** Pin a specific catalog dish (from search) */
+  dishId?: number;
+  dishName?: string;
 }
 
 export interface MealPlan {
@@ -136,9 +139,25 @@ export function formatCategoryLabel(category: DishCategory): string {
 }
 
 export function formatSlotLabel(slot: DishSlot): string {
+  if (slot.dishName?.trim()) return slot.dishName.trim();
   const categories = [slot.category, ...(slot.options ?? [])];
   const unique = [...new Set(categories)];
   return unique.map(formatCategoryLabel).join(" / ");
+}
+
+export function slotFromDishName(
+  name: string,
+  dishType?: string | null,
+  dishCategory?: string | null,
+  dishId?: number
+): DishSlot {
+  const category = (dishCategory as DishCategory | undefined) ?? resolveDishCategory(dishType, name);
+  return {
+    category,
+    count: 1,
+    dishId,
+    dishName: name.trim(),
+  };
 }
 
 export function formatSlotPreview(slot: DishSlot): string {

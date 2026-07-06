@@ -7,6 +7,7 @@ import { runMigrations } from "./server/db/migrate";
 import {
   ensureUserProfile,
   getDishesGroupedByIngredient,
+  searchDishes,
   getFeedbackForUser,
   getUserProfile,
   insertCombo,
@@ -822,6 +823,16 @@ app.get("/api/catalog/dishes", async (req, res) => {
     Object.entries(grouped).map(([ing, rows]) => [ing, rows.map(parseDishRow)])
   );
   res.json({ catalog, totalDishes: Object.values(catalog).reduce((sum, arr) => sum + arr.length, 0) });
+});
+
+app.get("/api/catalog/dishes/search", async (req, res) => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const limit = Math.min(Number(req.query.limit) || 10, 20);
+  if (!q) {
+    return res.json({ dishes: [] });
+  }
+  const rows = await searchDishes(q, limit);
+  res.json({ dishes: rows.map(parseDishRow) });
 });
 
 // --- Phase B: Build 3–5 combos from catalog + user rules ---
