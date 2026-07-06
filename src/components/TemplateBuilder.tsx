@@ -14,7 +14,7 @@ import {
 interface TemplateBuilderProps {
   templates: MealTemplate[];
   editing?: MealTemplate | null;
-  onSave: (template: MealTemplate) => Promise<boolean>;
+  onSave: (template: MealTemplate) => Promise<{ ok: boolean; error?: string }>;
   onDuplicate: (templateId: string) => void;
   onDelete: (templateId: string) => void;
   onClose: () => void;
@@ -127,11 +127,11 @@ export default function TemplateBuilder({
     setIsSaving(true);
     setSaveError(null);
     try {
-      const ok = await onSave({ ...draft, name: draft.name.trim() });
-      if (ok) {
+      const result = await onSave({ ...draft, name: draft.name.trim() });
+      if (result.ok) {
         onClose();
       } else {
-        setSaveError("Could not save template. Please try again.");
+        setSaveError(result.error || "Could not save template. Please try again.");
       }
     } catch {
       setSaveError("Could not save template. Please try again.");

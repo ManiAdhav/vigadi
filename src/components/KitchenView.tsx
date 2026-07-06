@@ -135,14 +135,17 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
 
   const handleRemoveTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
 
-  const saveTemplate = async (template: MealTemplate): Promise<boolean> => {
+  const saveTemplate = async (template: MealTemplate): Promise<{ ok: boolean; error?: string }> => {
     try {
       const res = await fetch(`/api/templates/${getUserId()}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ template }),
       });
-      if (!res.ok) return false;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { ok: false, error: err.error || `Save failed (${res.status})` };
+      }
       const data = await res.json();
       setTemplates(data.templates || []);
       setMatchingTemplates((prev) => {
@@ -153,9 +156,9 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
       setSelectedTemplateId(template.id);
       setAutoTemplateId(null);
       await loadTemplates(selectedSlot);
-      return true;
+      return { ok: true };
     } catch {
-      return false;
+      return { ok: false, error: "Network error — check your connection." };
     }
   };
 
