@@ -87,6 +87,12 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
       const forToday = all.filter((t: MealTemplate) => templateMatchesDayType(t, todayDayType));
       setMatchingTemplates(forToday);
 
+      if (all.length === 0) {
+        setSelectedTemplateId(null);
+        setAutoTemplateId(null);
+        return;
+      }
+
       const defaultSlot = inferDefaultMealSlot();
       const auto = forToday.find(
         (t: MealTemplate) =>
@@ -424,7 +430,12 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
           </div>
 
           <div className="flex flex-wrap gap-1.5">
-            {chipsToShow.map((tpl) => {
+            {chipsToShow.length === 0 ? (
+              <p className="text-[11px] text-espresso/60 italic">
+                No templates yet — tap Manage to create your first one.
+              </p>
+            ) : (
+              chipsToShow.map((tpl) => {
               const isSelected = selectedTemplateId === tpl.id;
               const isAuto = autoTemplateId === tpl.id;
               const slotLabel = tpl.meal_slots.map((s) => formatMealSlotLabel(s)).join(" · ");
@@ -451,7 +462,8 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
                   </span>
                 </button>
               );
-            })}
+            })
+            )}
           </div>
 
           {selectedTemplate && (

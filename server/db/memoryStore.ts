@@ -5,7 +5,6 @@ import {
   DaySettings,
   DEFAULT_DAY_SETTINGS,
   MealTemplate,
-  REGION_PRESET_TEMPLATES,
   resolveDishCategory,
 } from "../../shared/mealTemplates";
 
@@ -125,7 +124,7 @@ export function memoryEnsureUserProfile(userId: string, username: string): void 
     combo_rules: "Tamil Nadu rules: 1 Kulambu, 2 Sides",
     taste_profile: { ...DEFAULT_TASTE },
     city_code: null,
-    meal_templates: [...REGION_PRESET_TEMPLATES],
+    meal_templates: [],
     day_settings: { ...DEFAULT_DAY_SETTINGS },
   });
 }
@@ -156,8 +155,7 @@ export function memorySaveTasteProfile(userId: string, taste: TasteProfile): voi
 
 export function memoryGetMealTemplates(userId: string): MealTemplate[] {
   memoryEnsureUserProfile(userId, "Guest");
-  const profile = userProfiles.get(userId)!;
-  return profile.meal_templates?.length ? profile.meal_templates : [...REGION_PRESET_TEMPLATES];
+  return userProfiles.get(userId)!.meal_templates ?? [];
 }
 
 export function memorySaveMealTemplates(userId: string, templates: MealTemplate[]): void {

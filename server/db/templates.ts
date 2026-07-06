@@ -3,7 +3,6 @@ import {
   DaySettings,
   DEFAULT_DAY_SETTINGS,
   MealTemplate,
-  REGION_PRESET_TEMPLATES,
 } from "../../shared/mealTemplates";
 import {
   memoryGetDaySettings,
@@ -32,9 +31,7 @@ export async function getMealTemplates(userId: string): Promise<MealTemplate[]> 
     `SELECT meal_templates FROM user_profiles WHERE id = $1`,
     [userId]
   );
-  const stored = parseTemplates(result.rows[0]?.meal_templates);
-  if (stored.length === 0) return [...REGION_PRESET_TEMPLATES];
-  return stored;
+  return parseTemplates(result.rows[0]?.meal_templates);
 }
 
 export async function saveMealTemplates(userId: string, templates: MealTemplate[]): Promise<void> {
@@ -103,6 +100,7 @@ export async function duplicateMealTemplate(userId: string, templateId: string):
 }
 
 export async function resetMealTemplatesToPresets(userId: string): Promise<MealTemplate[]> {
+  const { REGION_PRESET_TEMPLATES } = await import("../../shared/mealTemplates");
   const presets = [...REGION_PRESET_TEMPLATES];
   await saveMealTemplates(userId, presets);
   return presets;
