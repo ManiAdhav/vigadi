@@ -3,9 +3,13 @@ import {
   DishCategory,
   DishSlot,
   MealTemplate,
+  MealSlot,
   formatTemplatePreview,
+  mealSlotFromUi,
+  resolveComboStaple,
   resolveDishCategory,
   slotAcceptsCategory,
+  templatePrimaryMealSlot,
 } from "../shared/mealTemplates";
 import { BuiltCombo, scoreDishForTaste, MAX_COMBOS } from "./comboBuilder";
 
@@ -100,10 +104,13 @@ export async function buildCombosFromTemplate(params: {
   ingredients: string[];
   template: MealTemplate;
   category: string;
+  includesRice?: boolean;
   excludeDishIds?: number[];
   maxCombos?: number;
 }): Promise<TemplateBuiltCombo[]> {
-  const { template, category } = params;
+  const { template } = params;
+  const mealSlot = templatePrimaryMealSlot(template);
+  const includesRice = params.includesRice ?? false;
   const taste = await getTasteProfile(params.userId);
   const maxCombos = params.maxCombos ?? MAX_COMBOS;
   const excludeIds = new Set(params.excludeDishIds ?? []);
@@ -147,21 +154,17 @@ export async function buildCombosFromTemplate(params: {
     if (picked.length === 0) continue;
 
     const parsed = picked.map(parseDishRow);
-    const staple = template.slots.some((s) => s.category === "rice_staple" || s.category === "tiffin")
-      ? template.slots.find((s) => s.category === "rice_staple")
-        ? "Rice"
-        : "As per template"
-      : "Rice";
+    const staple = resolveComboStaple(template, mealSlot, includesRice);
+    const subComponents = [...parsed.map((d) => d.name)];
+    if (staple) subComponents.push(staple);
 
     combos.push({
       id: `combo-tpl-${Date.now()}-${variant}`,
       name: buildComboNameFromTemplate(picked, template),
       dishIds: picked.map((d) => d.id),
-      subComponents: [...parsed.map((d) => d.name), staple === "Rice" ? "Rice" : staple].filter(
-        (v, i, arr) => arr.indexOf(v) === i
-      ),
+      subComponents,
       dishes: parsed,
-      staple,
+      staple: staple ?? "",
       rationale:
         unfilled.length > 0
           ? `${preview} — ${unfilled.length} slot(s) could not be fully filled from your ingredients.`

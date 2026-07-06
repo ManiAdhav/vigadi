@@ -10,9 +10,19 @@ import {
   RefreshCw,
   Settings2,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { BuiltComboOption, Meal, MealTemplate } from "../types";
-import { formatTemplatePreview, mealSlotFromUi } from "../../shared/mealTemplates";
+import {
+  formatTemplatePreview,
+  inferDefaultMealSlot,
+  templateMatchesDayType,
+  templatePrimaryMealSlot,
+  uiSlotFromMealSlot,
+  getDayTypeForDate,
+  DEFAULT_DAY_SETTINGS,
+  formatMealSlotLabel,
+} from "../../shared/mealTemplates";
 import IngredientAutocomplete from "./IngredientAutocomplete";
 import TemplateBuilder from "./TemplateBuilder";
 
@@ -39,7 +49,6 @@ function getUsername() {
 
 export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: KitchenViewProps) {
   const [tags, setTags] = useState<string[]>(["Potato", "Fish", "Chicken", "Tomato"]);
-  const [selectedSlot, setSelectedSlot] = useState<"Breakfast" | "Lunch" | "Dinner">("Lunch");
 
   const [templates, setTemplates] = useState<MealTemplate[]>([]);
   const [matchingTemplates, setMatchingTemplates] = useState<MealTemplate[]>([]);
@@ -59,32 +68,43 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
   const [tasteSummaries, setTasteSummaries] = useState<string[]>([]);
 
   const activeTags = tags.filter((t) => t.toLowerCase() !== "rice");
+  const includesRice = tags.some((t) => t.toLowerCase() === "rice");
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
+  const effectiveSlot = selectedTemplate
+    ? uiSlotFromMealSlot(templatePrimaryMealSlot(selectedTemplate))
+    : uiSlotFromMealSlot(inferDefaultMealSlot());
 
-  const loadTemplates = useCallback(async (slot = selectedSlot) => {
+  const loadTemplates = useCallback(async () => {
     try {
-      const mealSlot = mealSlotFromUi(slot);
-      const [allRes, matchRes] = await Promise.all([
-        fetch(`/api/templates/${getUserId()}`),
-        fetch(`/api/templates/${getUserId()}/match?mealSlot=${encodeURIComponent(mealSlot)}`),
-      ]);
-      if (allRes.ok) {
-        const allData = await allRes.json();
-        setTemplates(allData.templates || []);
-      }
-      if (matchRes.ok) {
-        const data = await matchRes.json();
-        setMatchingTemplates(data.templates || []);
-        setDayType(data.dayType || "school_day");
-        if (data.auto?.id) {
-          setAutoTemplateId(data.auto.id);
-          setSelectedTemplateId((prev) => prev ?? data.auto.id);
-        }
+      const res = await fetch(`/api/templates/${getUserId()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const all = data.templates || [];
+      setTemplates(all);
+      const daySettings = data.daySettings || DEFAULT_DAY_SETTINGS;
+      const todayDayType = getDayTypeForDate(new Date(), daySettings);
+      setDayType(todayDayType);
+      const forToday = all.filter((t: MealTemplate) => templateMatchesDayType(t, todayDayType));
+      setMatchingTemplates(forToday);
+
+      const defaultSlot = inferDefaultMealSlot();
+      const auto = forToday.find(
+        (t: MealTemplate) =>
+          t.meal_slots.includes(defaultSlot) &&
+          !t.day_types.includes("any")
+      ) ?? forToday.find((t: MealTemplate) => t.meal_slots.includes(defaultSlot)) ?? forToday[0];
+
+      if (auto?.id) {
+        setAutoTemplateId(auto.id);
+        setSelectedTemplateId((prev) => {
+          if (prev && all.some((t: MealTemplate) => t.id === prev)) return prev;
+          return auto.id;
+        });
       }
     } catch {
       /* ignore */
     }
-  }, [selectedSlot]);
+  }, []);
 
   const applyCatalogResponse = (data: { totalDishes?: number }) => {
     setCatalogTotal(data.totalDishes || 0);
@@ -113,8 +133,8 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
   }, []);
 
   useEffect(() => {
-    loadTemplates(selectedSlot);
-  }, [selectedSlot, loadTemplates]);
+    loadTemplates();
+  }, [loadTemplates]);
 
   const fetchTasteProfile = async () => {
     try {
@@ -129,8 +149,11 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
   };
 
   const handleAddIngredient = (canonical: string) => {
-    if (!canonical || canonical.toLowerCase() === "rice") return;
-    if (!tags.includes(canonical)) setTags([...tags, canonical]);
+    if (!canonical) return;
+    const normalized = canonical.trim();
+    if (!normalized) return;
+    const exists = tags.some((t) => t.toLowerCase() === normalized.toLowerCase());
+    if (!exists) setTags([...tags, normalized.charAt(0).toUpperCase() + normalized.slice(1)]);
   };
 
   const handleRemoveTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
@@ -155,7 +178,7 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
       });
       setSelectedTemplateId(template.id);
       setAutoTemplateId(null);
-      await loadTemplates(selectedSlot);
+      await loadTemplates();
       return { ok: true };
     } catch {
       return { ok: false, error: "Network error — check your connection." };
@@ -179,9 +202,26 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
     if (res.ok) {
       const data = await res.json();
       setTemplates(data.templates || []);
-      if (selectedTemplateId === templateId) setSelectedTemplateId(null);
-      await loadTemplates(selectedSlot);
+      if (selectedTemplateId === templateId) {
+        setSelectedTemplateId(null);
+        setAutoTemplateId(null);
+      }
+      await loadTemplates();
+      return true;
     }
+    return false;
+  };
+
+  const handleDeleteSelectedTemplate = async () => {
+    if (!selectedTemplateId || !selectedTemplate) return;
+    const confirmed = window.confirm(`Delete "${selectedTemplate.name}"? This cannot be undone.`);
+    if (!confirmed) return;
+    await deleteTemplate(selectedTemplateId);
+  };
+
+  const handleSelectTemplate = (tpl: MealTemplate) => {
+    setSelectedTemplateId(tpl.id);
+    setAutoTemplateId(null);
   };
 
   const toggleTomorrowHoliday = async () => {
@@ -192,7 +232,7 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isHoliday: next }),
     });
-    await loadTemplates(selectedSlot);
+    await loadTemplates();
   };
 
   const buildCombosFromCatalog = async () => {
@@ -206,8 +246,9 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ingredients: activeTags,
-          category: selectedSlot,
+          category: effectiveSlot,
           templateId: selectedTemplateId,
+          includesRice,
           userId: getUserId(),
           username: getUsername(),
         }),
@@ -290,7 +331,7 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
       id: combo.id,
       recipeName: combo.name,
       prepTime: "45 min",
-      category: selectedSlot,
+      category: effectiveSlot,
       macros: { carbs: 54, protein: 32, fat: 14, calories: 480 },
       rating: 4.8,
       difficulty: "Medium",
@@ -311,9 +352,7 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
   };
 
   const isWorking = isDiscovering || isBuilding;
-  const chipsToShow = matchingTemplates.length > 0 ? matchingTemplates : templates.filter((t) =>
-    t.meal_slots.includes(mealSlotFromUi(selectedSlot))
-  );
+  const chipsToShow = matchingTemplates.length > 0 ? matchingTemplates : templates;
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -345,53 +384,55 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
               </button>
             </span>
           ))}
-          <span className="inline-flex items-center px-2.5 py-1.5 rounded-lg bg-[#E0E7DC] border border-matcha text-[11px] font-bold text-espresso/80">
-            Rice (staple)
-          </span>
+          {!includesRice && (
+            <button
+              type="button"
+              onClick={() => handleAddIngredient("Rice")}
+              disabled={isWorking}
+              className="inline-flex items-center px-2.5 py-1.5 rounded-lg border border-dashed border-matcha/50 text-[11px] font-bold text-espresso/50 hover:border-[#2E9D70] hover:text-[#2E9D70] cursor-pointer disabled:opacity-50"
+            >
+              + Rice
+            </button>
+          )}
         </div>
 
-        <div className="space-y-1.5 pt-1 border-t border-matcha/10">
-          <label className="text-[10px] font-mono uppercase tracking-wider text-espresso/50 font-bold">Meal slot</label>
-          <div className="grid grid-cols-3 gap-2 bg-[#F1F3ED] p-1 rounded-xl border border-matcha/20">
-            {(["Breakfast", "Lunch", "Dinner"] as const).map((slot) => (
-              <button
-                key={slot}
-                type="button"
-                onClick={() => setSelectedSlot(slot)}
-                className={`py-2 rounded-lg text-xs font-bold cursor-pointer ${
-                  selectedSlot === slot ? "bg-espresso text-cream" : "text-espresso/70"
-                }`}
-              >
-                {slot}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-2">
+        <div className="space-y-2 pt-1 border-t border-matcha/10">
           <div className="flex items-center justify-between">
             <label className="text-[10px] font-mono uppercase tracking-wider text-espresso/50 font-bold">
               Meal template
             </label>
-            <button
-              type="button"
-              onClick={() => setShowTemplateManager(true)}
-              className="text-[10px] font-mono uppercase text-bakedclay font-bold flex items-center gap-1 cursor-pointer"
-            >
-              <Settings2 className="w-3 h-3" />
-              Manage
-            </button>
+            <div className="flex items-center gap-2">
+              {selectedTemplate && (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelectedTemplate}
+                  className="text-[10px] font-mono uppercase text-red-500 font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Delete
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowTemplateManager(true)}
+                className="text-[10px] font-mono uppercase text-bakedclay font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Settings2 className="w-3 h-3" />
+                Manage
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-1.5">
             {chipsToShow.map((tpl) => {
               const isSelected = selectedTemplateId === tpl.id;
               const isAuto = autoTemplateId === tpl.id;
+              const slotLabel = tpl.meal_slots.map((s) => formatMealSlotLabel(s)).join(" · ");
               return (
                 <button
                   key={tpl.id}
                   type="button"
-                  onClick={() => setSelectedTemplateId(tpl.id)}
+                  onClick={() => handleSelectTemplate(tpl)}
                   className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold cursor-pointer border ${
                     isSelected
                       ? "bg-espresso text-cream border-espresso"
@@ -404,16 +445,24 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
                       Auto
                     </span>
                   )}
-                  {tpl.name}
+                  <span>{tpl.name}</span>
+                  <span className={`text-[8px] font-mono uppercase ${isSelected ? "text-cream/70" : "text-espresso/40"}`}>
+                    {slotLabel}
+                  </span>
                 </button>
               );
             })}
           </div>
 
           {selectedTemplate && (
-            <p className="text-[11px] text-espresso/60 bg-[#F1F3ED] rounded-lg px-3 py-2">
-              {formatTemplatePreview(selectedTemplate)}
-            </p>
+            <div className="space-y-1">
+              <p className="text-[10px] font-mono uppercase text-espresso/50">
+                Meal time: {selectedTemplate.meal_slots.map((s) => formatMealSlotLabel(s)).join(", ")}
+              </p>
+              <p className="text-[11px] text-espresso/60 bg-[#F1F3ED] rounded-lg px-3 py-2">
+                {formatTemplatePreview(selectedTemplate)}
+              </p>
+            </div>
           )}
 
           <div className="flex items-center justify-between pt-1">
@@ -554,7 +603,8 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
                       </div>
                     ))}
                     <div className="flex items-center gap-2 text-[10px] text-espresso/50 font-mono pt-1">
-                      <Clock className="w-3 h-3" /> ~45 min · + {combo.staple}
+                      <Clock className="w-3 h-3" /> ~45 min
+                      {combo.staple ? ` · + ${combo.staple}` : ""}
                     </div>
                   </div>
 
@@ -602,7 +652,7 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
           onDelete={deleteTemplate}
           onClose={() => {
             setShowTemplateManager(false);
-            loadTemplates(selectedSlot);
+            loadTemplates();
           }}
         />
       )}

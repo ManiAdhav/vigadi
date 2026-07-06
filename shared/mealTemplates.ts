@@ -138,17 +138,21 @@ export function formatTemplatePreview(template: MealTemplate): string {
   return template.slots.map(formatSlotPreview).join(" + ");
 }
 
+export function templateMatchesDayType(template: MealTemplate, dayType: DayType): boolean {
+  return (
+    template.day_types.includes("any") ||
+    template.day_types.includes(dayType) ||
+    (dayType !== "school_day" && dayType !== "holiday" && template.day_types.includes(dayType))
+  );
+}
+
 export function templateMatchesContext(
   template: MealTemplate,
   mealSlot: MealSlot,
   dayType: DayType
 ): boolean {
   const slotMatch = template.meal_slots.includes(mealSlot);
-  const dayMatch =
-    template.day_types.includes("any") ||
-    template.day_types.includes(dayType) ||
-    (dayType !== "school_day" && dayType !== "holiday" && template.day_types.includes(dayType));
-  return slotMatch && dayMatch;
+  return slotMatch && templateMatchesDayType(template, dayType);
 }
 
 export function getDayTypeForDate(date: Date, settings: DaySettings): DayType {
@@ -171,6 +175,42 @@ export function pickAutoTemplate(
   }
   const exact = matching.find((t) => !t.day_types.includes("any"));
   return exact ?? matching[0];
+}
+
+export function templatePrimaryMealSlot(template: MealTemplate): MealSlot {
+  return template.meal_slots[0] ?? "lunch";
+}
+
+export function templateHasRiceStaple(template: MealTemplate): boolean {
+  return template.slots.some(
+    (s) => s.category === "rice_staple" || (s.options ?? []).includes("rice_staple")
+  );
+}
+
+export function inferDefaultMealSlot(date = new Date()): MealSlot {
+  const hour = date.getHours();
+  if (hour < 11) return "breakfast";
+  if (hour < 16) return "lunch";
+  return "dinner";
+}
+
+/** Rice only when template requires it or user manually added rice — never auto for breakfast. */
+export function resolveComboStaple(
+  template: MealTemplate | undefined,
+  mealSlot: MealSlot,
+  includesRice: boolean
+): string | null {
+  if (mealSlot === "breakfast") {
+    return includesRice ? "Rice" : null;
+  }
+  if (template && templateHasRiceStaple(template)) {
+    return "Rice";
+  }
+  return includesRice ? "Rice" : null;
+}
+
+export function formatMealSlotLabel(slot: MealSlot): string {
+  return uiSlotFromMealSlot(slot);
 }
 
 export function createTemplateId(): string {

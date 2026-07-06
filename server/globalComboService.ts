@@ -14,6 +14,7 @@ export async function buildCombosGlobalFirst(params: {
   rules: string;
   category: string;
   template?: MealTemplate;
+  includesRice?: boolean;
 }): Promise<{ combos: BuiltCombo[]; sessionId: string }> {
   const signature = buildIngredientSignature(params.ingredients);
   const profile = await getUserProfile(params.userId);
@@ -67,6 +68,7 @@ export async function buildCombosGlobalFirst(params: {
           ingredients: params.ingredients,
           template: params.template,
           category: params.category,
+          includesRice: params.includesRice,
           excludeDishIds: [...usedDishIds],
           maxCombos: MAX_COMBOS - combos.length,
         })
@@ -88,6 +90,7 @@ export async function buildCombosGlobalFirst(params: {
           ingredients: params.ingredients,
           template: params.template,
           category: params.category,
+          includesRice: params.includesRice,
           excludeDishIds: [],
           maxCombos: MIN_COMBOS - combos.length,
         })

@@ -16,7 +16,7 @@ interface TemplateBuilderProps {
   editing?: MealTemplate | null;
   onSave: (template: MealTemplate) => Promise<{ ok: boolean; error?: string }>;
   onDuplicate: (templateId: string) => void;
-  onDelete: (templateId: string) => void;
+  onDelete: (templateId: string) => void | Promise<boolean>;
   onClose: () => void;
 }
 
@@ -122,6 +122,11 @@ export default function TemplateBuilder({
     }));
   };
 
+  const handleDelete = (templateId: string, templateName: string) => {
+    if (!window.confirm(`Delete "${templateName}"? This cannot be undone.`)) return;
+    onDelete(templateId);
+  };
+
   const handleSave = async () => {
     if (!draft.name.trim() || draft.slots.length === 0 || isSaving) return;
     setIsSaving(true);
@@ -171,16 +176,14 @@ export default function TemplateBuilder({
                     >
                       <Copy className="w-3.5 h-3.5" />
                     </button>
-                    {!tpl.id.startsWith("preset-") && (
-                      <button
-                        type="button"
-                        onClick={() => onDelete(tpl.id)}
-                        className="p-1.5 rounded-lg border border-matcha/30 text-red-500/70 hover:text-red-600 cursor-pointer"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(tpl.id, tpl.name)}
+                      className="p-1.5 rounded-lg border border-matcha/30 text-red-500/70 hover:text-red-600 cursor-pointer"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
                 <button

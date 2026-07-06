@@ -214,13 +214,16 @@ function buildCombosRuleBased(
     if (picked.length === 0) continue;
 
     const parsed = picked.map(parseDishRow);
+    const addRice = category.toLowerCase() !== "breakfast";
+    const subComponents = [...parsed.map((d) => d.name)];
+    if (addRice) subComponents.push("Rice");
     combos.push({
       id: `combo-${Date.now()}-${variant}`,
       name: buildComboName(picked),
       dishIds: picked.map((d) => d.id),
-      subComponents: [...parsed.map((d) => d.name), "Rice"],
+      subComponents,
       dishes: parsed,
-      staple: "Rice",
+      staple: addRice ? "Rice" : "",
       rationale: `Balanced ${rules.gravyCount} gravy + ${rules.sideCount} sides from your ingredient catalog.`,
       source: "rule_engine",
     });

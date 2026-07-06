@@ -27,6 +27,10 @@ import {
   mealSlotFromUi,
   pickAutoTemplate,
   templateMatchesContext,
+  templateMatchesDayType,
+  templatePrimaryMealSlot,
+  inferDefaultMealSlot,
+  uiSlotFromMealSlot,
 } from "./shared/mealTemplates";
 import { discoverAndStoreIngredients } from "./server/discovery";
 import { combosToMeals } from "./server/comboBuilder";
@@ -801,7 +805,7 @@ app.get("/api/catalog/dishes", async (req, res) => {
 
 // --- Phase B: Build 3–5 combos from catalog + user rules ---
 app.post("/api/combos/build", async (req, res) => {
-  const { ingredients, rules, category, userId, username, templateId, template } = req.body;
+  const { ingredients, rules, category, userId, username, templateId, template, includesRice } = req.body;
   if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
     return res.status(400).json({ error: "Provide ingredients to build combos." });
   }
@@ -815,12 +819,21 @@ app.post("/api/combos/build", async (req, res) => {
     activeTemplate = templates.find((t) => t.id === templateId);
   }
 
-  const mealSlot = mealSlotFromUi((category || "Lunch") as "Breakfast" | "Lunch" | "Dinner");
+  const daySettings = await getDaySettings(uid);
+  const dayType = getDayTypeForDate(new Date(), daySettings);
+  const defaultSlot = inferDefaultMealSlot();
+
   if (!activeTemplate) {
-    const daySettings = await getDaySettings(uid);
-    const dayType = getDayTypeForDate(new Date(), daySettings);
-    activeTemplate = pickAutoTemplate(templates, mealSlot, dayType);
+    activeTemplate = pickAutoTemplate(
+      templates,
+      mealSlotFromUi((category || uiSlotFromMealSlot(defaultSlot)) as "Breakfast" | "Lunch" | "Dinner"),
+      dayType
+    );
   }
+
+  const mealSlot = activeTemplate ? templatePrimaryMealSlot(activeTemplate) : defaultSlot;
+  const categoryLabel = uiSlotFromMealSlot(mealSlot);
+  const hasRice = !!includesRice;
 
   const activeRules = activeTemplate
     ? `${activeTemplate.name}: ${activeTemplate.slots.map((s) => `${s.count} ${s.category}`).join(", ")}`
@@ -832,8 +845,9 @@ app.post("/api/combos/build", async (req, res) => {
       userId: uid,
       ingredients,
       rules: activeRules,
-      category: category || "Lunch",
+      category: categoryLabel,
       template: activeTemplate,
+      includesRice: hasRice,
     });
 
     if (built.length === 0) {
@@ -849,16 +863,16 @@ app.post("/api/combos/build", async (req, res) => {
         name: combo.name,
         dishIds: combo.dishIds,
         subComponents: combo.subComponents,
-        category: category || "Lunch",
+        category: categoryLabel,
         source: combo.source,
         globalComboId: combo.globalComboId,
       });
     }
 
-    const meals = combosToMeals(built, category || "Lunch");
+    const meals = combosToMeals(built, categoryLabel);
     meals.forEach((meal) => INITIAL_MEALS.unshift(meal as any));
 
-    res.json({ combos: built, meals, sessionId, template: activeTemplate });
+    res.json({ combos: built, meals, sessionId, template: activeTemplate, category: categoryLabel });
   } catch (error: any) {
     console.error("Combo build failed:", error);
     res.status(500).json({ error: "Failed to build meal combos from catalog." });
