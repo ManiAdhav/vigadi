@@ -4,12 +4,15 @@ import {
   DishSlot,
   MealTemplate,
   MealSlot,
+  formatMealSectionPreview,
   formatTemplatePreview,
+  getSlotsForMeal,
   mealSlotFromUi,
+  normalizeTemplate,
   resolveComboStaple,
   resolveDishCategory,
+  shouldFillSlotAtMeal,
   slotAcceptsCategory,
-  templatePrimaryMealSlot,
 } from "../shared/mealTemplates";
 import { BuiltCombo, scoreDishForTaste, MAX_COMBOS } from "./comboBuilder";
 
@@ -93,10 +96,23 @@ function pickForSlot(
   return picked.slice(0, slot.count);
 }
 
-function buildComboNameFromTemplate(dishes: DishRow[], template: MealTemplate): string {
+function buildComboNameFromTemplate(dishes: DishRow[], template: MealTemplate, mealSlot: MealSlot): string {
   if (dishes.length === 0) return template.name;
   const names = dishes.map((d) => d.name.split(" ")[0]).slice(0, 3);
-  return `${names.join(" + ")} · ${template.name}`;
+  const mealLabel = mealSlot.charAt(0).toUpperCase() + mealSlot.slice(1);
+  return `${names.join(" + ")} · ${mealLabel}`;
+}
+
+function resolveMealSlot(category: string, template: MealTemplate): MealSlot {
+  try {
+    const fromUi = mealSlotFromUi(category as "Breakfast" | "Lunch" | "Dinner");
+    if (getSlotsForMeal(template, fromUi).length > 0) return fromUi;
+  } catch {
+    /* fall through */
+  }
+  const normalized = normalizeTemplate(template);
+  const slots = normalized.meal_slots ?? [];
+  return slots[0] ?? "lunch";
 }
 
 export async function buildCombosFromTemplate(params: {
@@ -109,7 +125,7 @@ export async function buildCombosFromTemplate(params: {
   maxCombos?: number;
 }): Promise<TemplateBuiltCombo[]> {
   const { template } = params;
-  const mealSlot = templatePrimaryMealSlot(template);
+  const mealSlot = resolveMealSlot(params.category, template);
   const includesRice = params.includesRice ?? false;
   const taste = await getTasteProfile(params.userId);
   const maxCombos = params.maxCombos ?? MAX_COMBOS;
@@ -120,7 +136,17 @@ export async function buildCombosFromTemplate(params: {
   );
   if (catalogDishes.length === 0) return [];
 
-  const preview = formatTemplatePreview(template);
+  const allSlots = getSlotsForMeal(template, mealSlot);
+  const fillableSlots = allSlots.filter((slot) => shouldFillSlotAtMeal(slot, mealSlot));
+  const inheritedCount = allSlots.length - fillableSlots.length;
+
+  const preview =
+    inheritedCount > 0
+      ? `${formatMealSectionPreview(mealSlot, fillableSlots)} (+ ${inheritedCount} from earlier meal)`
+      : formatMealSectionPreview(mealSlot, fillableSlots);
+
+  if (fillableSlots.length === 0) return [];
+
   const combos: TemplateBuiltCombo[] = [];
   const globallyUsed = new Set<number>();
 
@@ -130,7 +156,7 @@ export async function buildCombosFromTemplate(params: {
     const picked: DishRow[] = [];
     const unfilled: UnfilledSlot[] = [];
 
-    template.slots.forEach((slot, slotIndex) => {
+    fillableSlots.forEach((slot, slotIndex) => {
       const candidates = dishesMatchingSlot(catalogDishes, slot, usedIds);
       const slotPicked = pickForSlot(candidates, slot, taste, variant, usedIngredients);
 
@@ -160,7 +186,7 @@ export async function buildCombosFromTemplate(params: {
 
     combos.push({
       id: `combo-tpl-${Date.now()}-${variant}`,
-      name: buildComboNameFromTemplate(picked, template),
+      name: buildComboNameFromTemplate(picked, template, mealSlot),
       dishIds: picked.map((d) => d.id),
       subComponents,
       dishes: parsed,
@@ -168,10 +194,10 @@ export async function buildCombosFromTemplate(params: {
       rationale:
         unfilled.length > 0
           ? `${preview} — ${unfilled.length} slot(s) could not be fully filled from your ingredients.`
-          : `Built from template: ${preview}`,
+          : `Built for ${mealSlot}: ${preview}`,
       source: "rule_engine",
       unfilledSlots: unfilled.length > 0 ? unfilled : undefined,
-      templatePreview: preview,
+      templatePreview: formatTemplatePreview(template),
     });
   }
 

@@ -17,6 +17,14 @@ export interface DishSlot {
   count: number;
   options?: DishCategory[];
   note?: string;
+  /** Cook once and reuse across meals in this template */
+  reuse?: "all_meals" | MealSlot;
+}
+
+export interface MealPlan {
+  breakfast?: DishSlot[];
+  lunch?: DishSlot[];
+  dinner?: DishSlot[];
 }
 
 export interface BalanceTarget {
@@ -28,9 +36,12 @@ export interface BalanceTarget {
 export interface MealTemplate {
   id: string;
   name: string;
-  meal_slots: MealSlot[];
-  day_types: DayType[];
-  slots: DishSlot[];
+  /** Per-meal dish lists (preferred) */
+  meals?: MealPlan;
+  /** @deprecated legacy flat list — migrated via normalizeTemplate */
+  meal_slots?: MealSlot[];
+  day_types?: DayType[];
+  slots?: DishSlot[];
   balance_target?: BalanceTarget;
 }
 
@@ -124,67 +135,175 @@ export function formatCategoryLabel(category: DishCategory): string {
   return DISH_CATEGORY_LABELS[category] ?? category;
 }
 
-export function formatSlotPreview(slot: DishSlot): string {
+export function formatSlotLabel(slot: DishSlot): string {
   const categories = [slot.category, ...(slot.options ?? [])];
   const unique = [...new Set(categories)];
-  const label =
-    unique.length > 1
-      ? unique.map(formatCategoryLabel).join("/")
-      : formatCategoryLabel(slot.category);
-  return `${slot.count} ${label}`;
+  return unique.map(formatCategoryLabel).join(" / ");
+}
+
+export function formatSlotPreview(slot: DishSlot): string {
+  return `${slot.count} ${formatSlotLabel(slot)}`;
+}
+
+export function formatReuseLabel(reuse: DishSlot["reuse"]): string | null {
+  if (!reuse) return null;
+  if (reuse === "all_meals") return "all meals";
+  return `from ${reuse}`;
+}
+
+export function normalizeTemplate(template: MealTemplate): MealTemplate & { meals: MealPlan } {
+  if (template.meals && Object.values(template.meals).some((s) => s && s.length > 0)) {
+    const meal_slots = templateMealSlots(template);
+    return {
+      ...template,
+      meals: template.meals,
+      meal_slots,
+      day_types: [],
+      slots: flattenMealPlan(template.meals),
+    };
+  }
+
+  const meals: MealPlan = {};
+  const legacySlots = template.slots ?? [];
+  const legacyMeals = template.meal_slots?.length ? template.meal_slots : ["lunch" as MealSlot];
+  if (legacySlots.length > 0) {
+    for (const ms of legacyMeals) {
+      meals[ms] = legacySlots.map((s) => ({ ...s, options: s.options ? [...s.options] : undefined }));
+    }
+  }
+
+  return {
+    ...template,
+    meals,
+    meal_slots: templateMealSlots({ ...template, meals }),
+    day_types: [],
+    slots: flattenMealPlan(meals),
+  };
+}
+
+export function flattenMealPlan(meals: MealPlan): DishSlot[] {
+  return (["breakfast", "lunch", "dinner"] as MealSlot[]).flatMap((ms) => meals[ms] ?? []);
+}
+
+export function templateMealSlots(template: MealTemplate): MealSlot[] {
+  const meals = template.meals ?? {};
+  return (["breakfast", "lunch", "dinner"] as MealSlot[]).filter(
+    (ms) => (meals[ms]?.length ?? 0) > 0
+  );
+}
+
+export function getSlotsForMeal(template: MealTemplate, mealSlot: MealSlot): DishSlot[] {
+  const normalized = normalizeTemplate(template);
+  return normalized.meals[mealSlot] ?? [];
+}
+
+export function templateHasMealSlot(template: MealTemplate, mealSlot: MealSlot): boolean {
+  return getSlotsForMeal(template, mealSlot).length > 0;
 }
 
 export function formatTemplatePreview(template: MealTemplate): string {
-  return template.slots.map(formatSlotPreview).join(" + ");
+  const normalized = normalizeTemplate(template);
+  const parts: string[] = [];
+  for (const ms of templateMealSlots(normalized)) {
+    const slots = normalized.meals[ms] ?? [];
+    if (slots.length === 0) continue;
+    const label = uiSlotFromMealSlot(ms);
+    parts.push(`${label}: ${slots.map(formatSlotLabel).join(" + ")}`);
+  }
+  return parts.join(" · ") || "Empty template";
+}
+
+export function formatMealSectionPreview(mealSlot: MealSlot, slots: DishSlot[]): string {
+  if (slots.length === 0) return "No dishes yet";
+  return slots.map(formatSlotLabel).join(" + ");
+}
+
+export function templateMealsLabel(template: MealTemplate): string {
+  return templateMealSlots(normalizeTemplate(template))
+    .map((s) => formatMealSlotLabel(s))
+    .join(" · ");
+}
+
+export function prepareTemplateForSave(template: MealTemplate): MealTemplate {
+  const normalized = normalizeTemplate(template);
+  const hasAnySlot = templateMealSlots(normalized).length > 0;
+  if (!hasAnySlot) return normalized;
+  return {
+    id: template.id,
+    name: template.name.trim(),
+    meals: {
+      breakfast: normalized.meals.breakfast?.map((s) => ({ ...s })),
+      lunch: normalized.meals.lunch?.map((s) => ({ ...s })),
+      dinner: normalized.meals.dinner?.map((s) => ({ ...s })),
+    },
+    meal_slots: templateMealSlots(normalized),
+    day_types: [],
+    slots: flattenMealPlan(normalized.meals),
+    balance_target: template.balance_target,
+  };
+}
+
+export function shouldFillSlotAtMeal(slot: DishSlot, _mealSlot: MealSlot): boolean {
+  if (!slot.reuse) return true;
+  if (slot.reuse === "all_meals") return true;
+  return false;
+}
+
+export function reuseOptionsForMeal(
+  mealSlot: MealSlot,
+  plan: MealPlan
+): Array<DishSlot["reuse"] | undefined> {
+  const order: MealSlot[] = ["breakfast", "lunch", "dinner"];
+  const idx = order.indexOf(mealSlot);
+  const earlier = order.slice(0, idx).filter((ms) => (plan[ms]?.length ?? 0) > 0);
+  const opts: Array<DishSlot["reuse"] | undefined> = [undefined];
+  if (mealSlot === "breakfast") {
+    opts.push("all_meals");
+  } else {
+    for (const m of earlier) opts.push(m);
+  }
+  return opts;
 }
 
 export function templateMatchesDayType(template: MealTemplate, dayType: DayType): boolean {
+  const types = template.day_types ?? ["any"];
   return (
-    template.day_types.includes("any") ||
-    template.day_types.includes(dayType) ||
-    (dayType !== "school_day" && dayType !== "holiday" && template.day_types.includes(dayType))
+    types.includes("any") ||
+    types.includes(dayType) ||
+    (dayType !== "school_day" && dayType !== "holiday" && types.includes(dayType))
   );
 }
 
 export function templateMatchesContext(
   template: MealTemplate,
   mealSlot: MealSlot,
-  dayType: DayType
+  _dayType?: DayType
 ): boolean {
-  const slotMatch = template.meal_slots.includes(mealSlot);
-  return slotMatch && templateMatchesDayType(template, dayType);
-}
-
-export function getDayTypeForDate(date: Date, settings: DaySettings): DayType {
-  const iso = date.toISOString().slice(0, 10);
-  if (settings.holiday_override?.date === iso) {
-    return settings.holiday_override.is_holiday ? "holiday" : "school_day";
-  }
-  const weekday = date.getDay();
-  return settings.school_weekdays.includes(weekday) ? "school_day" : "holiday";
+  return templateHasMealSlot(template, mealSlot);
 }
 
 export function pickAutoTemplate(
   templates: MealTemplate[],
   mealSlot: MealSlot,
-  dayType: DayType
+  _dayType?: DayType
 ): MealTemplate | undefined {
-  const matching = templates.filter((t) => templateMatchesContext(t, mealSlot, dayType));
-  if (matching.length === 0) {
-    return templates.find((t) => t.meal_slots.includes(mealSlot));
-  }
-  const exact = matching.find((t) => !t.day_types.includes("any"));
-  return exact ?? matching[0];
+  const matching = templates.filter((t) => templateHasMealSlot(t, mealSlot));
+  return matching[0];
 }
 
 export function templatePrimaryMealSlot(template: MealTemplate): MealSlot {
-  return template.meal_slots[0] ?? "lunch";
+  const slots = templateMealSlots(template);
+  return slots[0] ?? "lunch";
 }
 
-export function templateHasRiceStaple(template: MealTemplate): boolean {
-  return template.slots.some(
-    (s) => s.category === "rice_staple" || (s.options ?? []).includes("rice_staple")
-  );
+export function templateHasRiceStaple(template: MealTemplate, mealSlot?: MealSlot): boolean {
+  const normalized = normalizeTemplate(template);
+  const check = (slots: DishSlot[]) =>
+    slots.some(
+      (s) => s.category === "rice_staple" || (s.options ?? []).includes("rice_staple")
+    );
+  if (mealSlot) return check(normalized.meals[mealSlot] ?? []);
+  return check(flattenMealPlan(normalized.meals));
 }
 
 export function inferDefaultMealSlot(date = new Date()): MealSlot {
@@ -203,7 +322,7 @@ export function resolveComboStaple(
   if (mealSlot === "breakfast") {
     return includesRice ? "Rice" : null;
   }
-  if (template && templateHasRiceStaple(template)) {
+  if (template && templateHasRiceStaple(template, mealSlot)) {
     return "Rice";
   }
   return includesRice ? "Rice" : null;
@@ -212,6 +331,30 @@ export function resolveComboStaple(
 export function formatMealSlotLabel(slot: MealSlot): string {
   return uiSlotFromMealSlot(slot);
 }
+
+export function getDayTypeForDate(date: Date, settings: DaySettings): DayType {
+  const iso = date.toISOString().slice(0, 10);
+  if (settings.holiday_override?.date === iso) {
+    return settings.holiday_override.is_holiday ? "holiday" : "school_day";
+  }
+  const weekday = date.getDay();
+  return settings.school_weekdays.includes(weekday) ? "school_day" : "holiday";
+}
+
+export function createBlankMealPlan(): MealPlan {
+  return { breakfast: [], lunch: [], dinner: [] };
+}
+
+export const QUICK_DISH_PRESETS: Array<{ label: string; slot: DishSlot }> = [
+  { label: "Tiffin", slot: { category: "tiffin", count: 1 } },
+  { label: "Chutney / Sambar", slot: { category: "chutney", count: 1, options: ["sambar"] } },
+  { label: "Veg Side", slot: { category: "side_poriyal", count: 1 } },
+  { label: "Protein", slot: { category: "protein", count: 1 } },
+  { label: "Mixed Rice", slot: { category: "mixed_rice", count: 1 } },
+  { label: "Rice", slot: { category: "rice_staple", count: 1 } },
+  { label: "Kulambu", slot: { category: "kulambu", count: 1 } },
+  { label: "Curry", slot: { category: "curry", count: 1 } },
+];
 
 export function createTemplateId(): string {
   return `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -224,7 +367,23 @@ export const DEFAULT_DAY_SETTINGS: DaySettings = {
 
 export const REGION_PRESET_TEMPLATES: MealTemplate[] = [
   {
-    id: "preset-tn-lunch",
+    id: "preset-school-day-combo",
+    name: "School Day Combo",
+    meals: {
+      breakfast: [
+        { category: "tiffin", count: 1 },
+        { category: "chutney", count: 1, options: ["sambar"] },
+        { category: "side_poriyal", count: 1, reuse: "all_meals" },
+        { category: "protein", count: 1, reuse: "all_meals", note: "egg preferred for kids" },
+      ],
+      lunch: [
+        { category: "mixed_rice", count: 1 },
+        { category: "side_poriyal", count: 1, reuse: "breakfast" },
+        { category: "protein", count: 1, reuse: "breakfast" },
+      ],
+    },
+  },
+  {
     name: "Tamil Nadu Lunch",
     meal_slots: ["lunch"],
     day_types: ["any"],

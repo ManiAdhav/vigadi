@@ -3,6 +3,7 @@ import {
   DaySettings,
   DEFAULT_DAY_SETTINGS,
   MealTemplate,
+  normalizeTemplate,
 } from "../../shared/mealTemplates";
 import {
   memoryGetDaySettings,
@@ -89,10 +90,9 @@ export async function duplicateMealTemplate(userId: string, templateId: string):
   const source = templates.find((t) => t.id === templateId);
   if (!source) return templates;
   const copy: MealTemplate = {
-    ...source,
+    ...normalizeTemplate(source),
     id: `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name: `${source.name} (copy)`,
-    slots: source.slots.map((s) => ({ ...s, options: s.options ? [...s.options] : undefined })),
   };
   templates.push(copy);
   await saveMealTemplates(userId, templates);

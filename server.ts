@@ -23,11 +23,13 @@ import {
   saveDaySettings,
 } from "./server/db";
 import {
-  getDayTypeForDate,
+  formatTemplatePreview,
   mealSlotFromUi,
   pickAutoTemplate,
+  prepareTemplateForSave,
+  templateHasMealSlot,
   templateMatchesContext,
-  templateMatchesDayType,
+  templateMealSlots,
   templatePrimaryMealSlot,
   inferDefaultMealSlot,
   uiSlotFromMealSlot,
@@ -838,24 +840,26 @@ app.post("/api/combos/build", async (req, res) => {
     activeTemplate = templates.find((t) => t.id === templateId);
   }
 
-  const daySettings = await getDaySettings(uid);
-  const dayType = getDayTypeForDate(new Date(), daySettings);
   const defaultSlot = inferDefaultMealSlot();
+  const requestedSlot = mealSlotFromUi(
+    (category || uiSlotFromMealSlot(defaultSlot)) as "Breakfast" | "Lunch" | "Dinner"
+  );
 
   if (!activeTemplate) {
-    activeTemplate = pickAutoTemplate(
-      templates,
-      mealSlotFromUi((category || uiSlotFromMealSlot(defaultSlot)) as "Breakfast" | "Lunch" | "Dinner"),
-      dayType
-    );
+    activeTemplate = pickAutoTemplate(templates, requestedSlot);
   }
 
-  const mealSlot = activeTemplate ? templatePrimaryMealSlot(activeTemplate) : defaultSlot;
+  const mealSlot =
+    activeTemplate && templateHasMealSlot(activeTemplate, requestedSlot)
+      ? requestedSlot
+      : activeTemplate
+        ? templatePrimaryMealSlot(activeTemplate)
+        : requestedSlot;
   const categoryLabel = uiSlotFromMealSlot(mealSlot);
   const hasRice = !!includesRice;
 
   const activeRules = activeTemplate
-    ? `${activeTemplate.name}: ${activeTemplate.slots.map((s) => `${s.count} ${s.category}`).join(", ")}`
+    ? `${activeTemplate.name}: ${formatTemplatePreview(activeTemplate)}`
     : rules || "Tamil Nadu rules: 1 Kulambu, 2 Sides";
   await updateUserComboRules(uid, activeRules);
 
@@ -963,22 +967,25 @@ app.get("/api/templates/:userId/match", async (req, res) => {
   await ensureUserProfile(uid, "Guest");
   const templates = await getMealTemplates(uid);
   const daySettings = await getDaySettings(uid);
-  const dayType = getDayTypeForDate(new Date(), daySettings);
   const slot = mealSlot.toLowerCase() as "breakfast" | "lunch" | "dinner";
-  const matching = templates.filter((t) => templateMatchesContext(t, slot, dayType));
-  const auto = pickAutoTemplate(templates, slot, dayType);
-  res.json({ templates: matching, auto, dayType, daySettings });
+  const matching = templates.filter((t) => templateMatchesContext(t, slot));
+  const auto = pickAutoTemplate(templates, slot);
+  res.json({ templates: matching, auto, daySettings });
 });
 
 app.post("/api/templates/:userId", async (req, res) => {
   const uid = req.params.userId || "default-user";
   const { template } = req.body;
-  if (!template?.name || !template?.slots?.length) {
-    return res.status(400).json({ error: "Template name and at least one slot required." });
+  if (!template?.name) {
+    return res.status(400).json({ error: "Template name is required." });
+  }
+  const prepared = prepareTemplateForSave(template);
+  if (templateMealSlots(prepared).length === 0) {
+    return res.status(400).json({ error: "Add at least one dish to the template." });
   }
   try {
     await ensureUserProfile(uid, "Guest");
-    const templates = await upsertMealTemplate(uid, template);
+    const templates = await upsertMealTemplate(uid, prepared);
     res.json({ templates });
   } catch (error: any) {
     console.error("Template save failed:", error);
