@@ -61,11 +61,18 @@ const OFFLINE_DISH_TEMPLATES: Record<string, DiscoveredDish[]> = {
     { name: "Chicken Sambar", youtubeUrl: "https://www.youtube.com/results?search_query=chicken+sambar", dishType: "gravy", spiceLevel: "medium", mainIngredients: ["chicken", "toor dal", "tamarind"], pairsWith: ["Rice"], description: "Lentil-based chicken sambar" },
   ],
   tomato: [
-    { name: "Tomato Chutney", youtubeUrl: "https://www.youtube.com/results?search_query=tomato+chutney+south+indian", dishType: "side", spiceLevel: "medium", mainIngredients: ["tomato", "chili", "tamarind"], pairsWith: ["Rice", "Idli", "Dosa"], description: "Tangy tomato chutney side" },
+    { name: "Tomato Chutney", youtubeUrl: "https://www.youtube.com/results?search_query=tomato+chutney+south+indian", dishType: "chutney", spiceLevel: "medium", mainIngredients: ["tomato", "chili", "tamarind"], pairsWith: ["Rice", "Idli", "Dosa"], description: "Tangy tomato chutney side" },
+    { name: "Tomato Rice", youtubeUrl: "https://www.youtube.com/results?search_query=tomato+rice+south+indian", dishType: "mixed_rice", spiceLevel: "medium", mainIngredients: ["tomato", "rice"], pairsWith: ["Rice"], description: "Quick one-pot tomato rice" },
     { name: "Tomato Rasam", youtubeUrl: "https://www.youtube.com/results?search_query=tomato+rasam", dishType: "gravy", spiceLevel: "mild", mainIngredients: ["tomato", "pepper", "cumin"], pairsWith: ["Rice"], description: "Light peppery tomato soup-gravy" },
-    { name: "Tomato Pachadi", youtubeUrl: "https://www.youtube.com/results?search_query=tomato+pachadi", dishType: "side", spiceLevel: "mild", mainIngredients: ["tomato", "yogurt"], pairsWith: ["Rice"], description: "Cooling tomato yogurt side" },
     { name: "Tomato Sambar", youtubeUrl: "https://www.youtube.com/results?search_query=tomato+sambar", dishType: "gravy", spiceLevel: "medium", mainIngredients: ["tomato", "toor dal"], pairsWith: ["Rice", "Idli"], description: "Classic tomato lentil sambar" },
     { name: "Tomato Fry", youtubeUrl: "https://www.youtube.com/results?search_query=tomato+fry+south+indian", dishType: "side", spiceLevel: "medium", mainIngredients: ["tomato", "onion"], pairsWith: ["Rice", "Chapati"], description: "Sautéed tomato side dish" },
+  ],
+  carrot: [
+    { name: "Carrot Rice", youtubeUrl: "https://www.youtube.com/results?search_query=carrot+rice+south+indian", dishType: "mixed_rice", spiceLevel: "mild", mainIngredients: ["carrot", "rice"], pairsWith: ["Rice"], description: "Mild sweet carrot rice for lunch boxes" },
+    { name: "Carrot Poriyal", youtubeUrl: "https://www.youtube.com/results?search_query=carrot+poriyal", dishType: "side", spiceLevel: "mild", mainIngredients: ["carrot", "coconut"], pairsWith: ["Rice"], description: "Dry coconut carrot poriyal" },
+    { name: "Carrot Sambar", youtubeUrl: "https://www.youtube.com/results?search_query=carrot+sambar", dishType: "gravy", spiceLevel: "medium", mainIngredients: ["carrot", "toor dal"], pairsWith: ["Rice"], description: "Tangy carrot sambar gravy" },
+    { name: "Carrot Chutney", youtubeUrl: "https://www.youtube.com/results?search_query=carrot+chutney", dishType: "chutney", spiceLevel: "mild", mainIngredients: ["carrot", "coconut"], pairsWith: ["Rice", "Idli", "Dosa"], description: "Mild carrot chutney for tiffin" },
+    { name: "Carrot Fry", youtubeUrl: "https://www.youtube.com/results?search_query=carrot+fry+south+indian", dishType: "side", spiceLevel: "medium", mainIngredients: ["carrot"], pairsWith: ["Rice"], description: "Crispy pan-roasted carrot side" },
   ],
   eggplant: [
     { name: "Kathirikai Poriyal", youtubeUrl: "https://www.youtube.com/results?search_query=kathirikai+poriyal", dishType: "side", spiceLevel: "mild", mainIngredients: ["eggplant", "coconut"], pairsWith: ["Rice"], description: "Dry brinjal coconut poriyal" },
@@ -90,11 +97,11 @@ function getOfflineDishes(ingredient: string): DiscoveredDish[] {
 
   const canonical = resolved?.canonical ?? ingredient.charAt(0).toUpperCase() + ingredient.slice(1);
   return [
+    { name: `${canonical} Rice`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(canonical + " rice south indian")}`, dishType: "mixed_rice", spiceLevel: "mild", mainIngredients: [canonical.toLowerCase(), "rice"], pairsWith: ["Rice"], description: `One-pot ${canonical.toLowerCase()} rice` },
     { name: `${canonical} Fry`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(canonical + " fry south indian")}`, dishType: "side", spiceLevel: "medium", mainIngredients: [canonical.toLowerCase()], pairsWith: ["Rice"], description: `Crispy ${canonical.toLowerCase()} fry side` },
     { name: `${canonical} Sambar`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(canonical + " sambar")}`, dishType: "gravy", spiceLevel: "medium", mainIngredients: [canonical.toLowerCase(), "toor dal"], pairsWith: ["Rice"], description: `Tangy ${canonical.toLowerCase()} sambar gravy` },
     { name: `${canonical} Poriyal`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(canonical + " poriyal")}`, dishType: "side", spiceLevel: "mild", mainIngredients: [canonical.toLowerCase(), "coconut"], pairsWith: ["Rice"], description: `Dry coconut ${canonical.toLowerCase()} poriyal` },
     { name: `${canonical} Curry`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(canonical + " curry south indian")}`, dishType: "gravy", spiceLevel: "medium", mainIngredients: [canonical.toLowerCase(), "onion"], pairsWith: ["Rice", "Chapati"], description: `${canonical} homestyle curry` },
-    { name: `${canonical} Roast`, youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(canonical + " roast south indian")}`, dishType: "side", spiceLevel: "spicy", mainIngredients: [canonical.toLowerCase()], pairsWith: ["Rice"], description: `Spiced roasted ${canonical.toLowerCase()}` },
   ];
 }
 

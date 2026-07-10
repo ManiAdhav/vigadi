@@ -42,6 +42,7 @@ export interface BuiltComboOption {
   popularCount?: number;
   unfilledSlots?: UnfilledSlot[];
   templatePreview?: string;
+  mealLabel?: string;
 }
 
 export type {

@@ -1,9 +1,9 @@
 import { buildIngredientSignature } from "./db/ingredientSignature";
 import { getPopularCombos } from "./db/globalCombos";
 import { getDishesByIds, getTasteProfile, getUserProfile, parseDishRow } from "./db";
-import { buildCombosFromCatalog, BuiltCombo, scoreDishForTaste, MIN_COMBOS, MAX_COMBOS } from "./comboBuilder";
+import { buildCombosFromCatalog, BuiltCombo, scoreDishForTaste, MIN_COMBOS, MAX_COMBOS, combosToMeals } from "./comboBuilder";
 import { buildCombosFromTemplate, templateToRulesDescription } from "./mealTemplateBuilder";
-import { MealTemplate } from "../shared/mealTemplates";
+import { MealSlot, MealTemplate } from "../shared/mealTemplates";
 import { insertGenerationSession, insertComboCandidate } from "./db/events";
 
 const MIN_TASTE_SCORE = -5;
@@ -130,4 +130,41 @@ export async function buildCombosGlobalFirst(params: {
   }
 
   return { combos, sessionId };
+}
+
+export async function buildCombosForMealSlots(params: {
+  userId: string;
+  ingredients: string[];
+  rules: string;
+  mealSlots: Array<{ slot: MealSlot; label: string }>;
+  template?: MealTemplate;
+  includesRice?: boolean;
+}): Promise<{
+  combos: BuiltCombo[];
+  meals: ReturnType<typeof combosToMeals>;
+  sessionId: string;
+  combosByMeal: Array<{ mealLabel: string; mealSlot: string; combos: BuiltCombo[] }>;
+}> {
+  const allCombos: BuiltCombo[] = [];
+  const allMeals: ReturnType<typeof combosToMeals> = [];
+  const combosByMeal: Array<{ mealLabel: string; mealSlot: string; combos: BuiltCombo[] }> = [];
+  let sessionId = `session-${Date.now()}`;
+
+  for (const { slot, label } of params.mealSlots) {
+    const { combos, sessionId: builtSessionId } = await buildCombosGlobalFirst({
+      userId: params.userId,
+      ingredients: params.ingredients,
+      rules: params.rules,
+      category: label,
+      template: params.template,
+      includesRice: params.includesRice,
+    });
+    sessionId = builtSessionId;
+    const tagged = combos.map((combo) => ({ ...combo, mealLabel: label }));
+    combosByMeal.push({ mealLabel: label, mealSlot: slot, combos: tagged });
+    allCombos.push(...tagged);
+    allMeals.push(...combosToMeals(combos, label));
+  }
+
+  return { combos: allCombos, meals: allMeals, sessionId, combosByMeal };
 }

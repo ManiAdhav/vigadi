@@ -23,6 +23,7 @@ export interface BuiltCombo {
   source: "global_pool" | "gemini" | "rule_engine";
   popularCount?: number;
   globalComboId?: number;
+  mealLabel?: string;
 }
 
 const GRAVY_TYPES = new Set(["gravy", "kulambu", "sambar", "curry", "kuzhambu", "rasam"]);

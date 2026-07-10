@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   X,
   ChefHat,
@@ -11,6 +11,7 @@ import {
   Settings2,
   Sparkles,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { BuiltComboOption, Meal, MealTemplate } from "../types";
 import {
@@ -62,6 +63,8 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
     uiSlotFromMealSlot(inferDefaultMealSlot())
   );
   const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [templateToEdit, setTemplateToEdit] = useState<MealTemplate | null>(null);
+  const [generationScope, setGenerationScope] = useState<"full_day" | "single_meal">("full_day");
 
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isBuilding, setIsBuilding] = useState(false);
@@ -231,6 +234,7 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
     setSelectedTemplateId(tpl.id);
     setAutoTemplateId(null);
     const meals = templateMealSlots(normalizeTemplate(tpl));
+    if (meals.length > 1) setGenerationScope("full_day");
     const preferred = mealSlotFromUi(activeMealSlot);
     if (!meals.includes(preferred) && meals.length > 0) {
       setActiveMealSlot(uiSlotFromMealSlot(meals[0]));
@@ -251,6 +255,8 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
           category: effectiveSlot,
           templateId: selectedTemplateId,
           includesRice,
+          generateAllTemplateMeals:
+            generationScope === "full_day" && !!selectedTemplate && templateMeals.length > 1,
           userId: getUserId(),
           username: getUsername(),
         }),
@@ -355,6 +361,18 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
 
   const isWorking = isDiscovering || isBuilding;
   const chipsToShow = matchingTemplates.length > 0 ? matchingTemplates : templates;
+  const comboGroups = useMemo(() => {
+    const hasMealLabels = builtCombos.some((combo) => combo.mealLabel);
+    if (!hasMealLabels) return [{ label: null as string | null, combos: builtCombos }];
+    const groups = new Map<string, BuiltComboOption[]>();
+    for (const combo of builtCombos) {
+      const label = combo.mealLabel || "Menu";
+      const current = groups.get(label) ?? [];
+      current.push(combo);
+      groups.set(label, current);
+    }
+    return [...groups.entries()].map(([label, combos]) => ({ label, combos }));
+  }, [builtCombos]);
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -405,18 +423,34 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
             </label>
             <div className="flex items-center gap-2">
               {selectedTemplate && (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelectedTemplate}
-                  className="text-[10px] font-mono uppercase text-red-500 font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Delete
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTemplateToEdit(selectedTemplate);
+                      setShowTemplateManager(true);
+                    }}
+                    className="text-[10px] font-mono uppercase text-bakedclay font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteSelectedTemplate}
+                    className="text-[10px] font-mono uppercase text-red-500 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Delete
+                  </button>
+                </>
               )}
               <button
                 type="button"
-                onClick={() => setShowTemplateManager(true)}
+                onClick={() => {
+                  setTemplateToEdit(null);
+                  setShowTemplateManager(true);
+                }}
                 className="text-[10px] font-mono uppercase text-bakedclay font-bold flex items-center gap-1 cursor-pointer"
               >
                 <Settings2 className="w-3 h-3" />
@@ -467,28 +501,64 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
               {templateMeals.length > 1 && (
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-espresso/50 font-bold">
-                    Cooking now
+                    Generate
                   </label>
                   <div className="flex flex-wrap gap-1.5">
-                    {templateMeals.map((ms) => {
-                      const label = formatMealSlotLabel(ms);
-                      const isActive = effectiveSlot === label;
-                      return (
-                        <button
-                          key={ms}
-                          type="button"
-                          onClick={() => setActiveMealSlot(label)}
-                          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer ${
-                            isActive
-                              ? "bg-espresso text-cream"
-                              : "bg-[#F1F3ED] text-espresso/70 border border-matcha/20"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
+                    <button
+                      type="button"
+                      onClick={() => setGenerationScope("full_day")}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer ${
+                        generationScope === "full_day"
+                          ? "bg-espresso text-cream"
+                          : "bg-[#F1F3ED] text-espresso/70 border border-matcha/20"
+                      }`}
+                    >
+                      Full day
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGenerationScope("single_meal")}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer ${
+                        generationScope === "single_meal"
+                          ? "bg-espresso text-cream"
+                          : "bg-[#F1F3ED] text-espresso/70 border border-matcha/20"
+                      }`}
+                    >
+                      Just one meal
+                    </button>
                   </div>
+                  {generationScope === "single_meal" && (
+                    <>
+                      <label className="text-[10px] font-mono uppercase tracking-wider text-espresso/50 font-bold">
+                        Cooking now
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {templateMeals.map((ms) => {
+                          const label = formatMealSlotLabel(ms);
+                          const isActive = effectiveSlot === label;
+                          return (
+                            <button
+                              key={ms}
+                              type="button"
+                              onClick={() => setActiveMealSlot(label)}
+                              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer ${
+                                isActive
+                                  ? "bg-espresso text-cream"
+                                  : "bg-[#F1F3ED] text-espresso/70 border border-matcha/20"
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <p className="text-[10px] text-espresso/50">
+                    {generationScope === "full_day"
+                      ? `Discover builds breakfast and lunch together from your template.`
+                      : `Generating for ${effectiveSlot} only.`}
+                  </p>
                 </div>
               )}
               <p className="text-[11px] text-espresso/60 bg-[#F1F3ED] rounded-lg px-3 py-2">
@@ -561,7 +631,14 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
               </button>
             </div>
             <p className="text-[10px] font-mono uppercase text-espresso/50 font-bold">Pick your plate — feedback updates your taste profile</p>
-            {builtCombos.map((combo, idx) => {
+            {comboGroups.map((group) => (
+              <div key={group.label ?? "menu"} className="space-y-3">
+                {group.label && (
+                  <h4 className="text-[10px] font-mono uppercase tracking-wider text-bakedclay font-bold">
+                    {group.label}
+                  </h4>
+                )}
+                {group.combos.map((combo, idx) => {
               const isSelected = selectedComboId === combo.id;
               return (
                 <div
@@ -574,6 +651,11 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[9px] font-mono font-bold text-bakedclay uppercase">Option {idx + 1}</span>
+                        {combo.mealLabel && (
+                          <span className="text-[9px] bg-espresso/10 text-espresso/70 px-2 py-0.5 rounded-full font-mono">
+                            {combo.mealLabel}
+                          </span>
+                        )}
                         {combo.source === "global_pool" && combo.popularCount != null && combo.popularCount > 0 && (
                           <span className="text-[9px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold">
                             Popular · {combo.popularCount} picks
@@ -639,6 +721,8 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
                 </div>
               );
             })}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -664,11 +748,13 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
       {showTemplateManager && (
         <TemplateBuilder
           templates={templates}
+          editing={templateToEdit}
           onSave={saveTemplate}
           onDuplicate={duplicateTemplate}
           onDelete={deleteTemplate}
           onClose={() => {
             setShowTemplateManager(false);
+            setTemplateToEdit(null);
             loadTemplates();
           }}
         />
