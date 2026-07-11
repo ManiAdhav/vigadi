@@ -7,6 +7,7 @@ import { runMigrations } from "./server/db/migrate";
 import {
   ensureUserProfile,
   getDishesGroupedByIngredient,
+  getDishesByIngredientNames,
   searchDishes,
   getFeedbackForUser,
   getUserProfile,
@@ -36,8 +37,8 @@ import {
   uiSlotFromMealSlot,
 } from "./shared/mealTemplates";
 import { discoverAndStoreIngredients } from "./server/discovery";
-import { combosToMeals } from "./server/comboBuilder";
-import { buildCombosGlobalFirst } from "./server/globalComboService";
+import { buildCombosForMealSlots } from "./server/globalComboService";
+import { describeComboBuildFailure } from "./server/comboBuildErrors";
 import { GEMINI_MODEL } from "./server/geminiConfig";
 import {
   getTasteSummary,
@@ -837,7 +838,7 @@ app.get("/api/catalog/dishes/search", async (req, res) => {
 
 // --- Phase B: Build 3–5 combos from catalog + user rules ---
 app.post("/api/combos/build", async (req, res) => {
-  const { ingredients, rules, category, userId, username, templateId, template, includesRice } = req.body;
+  const { ingredients, rules, category, userId, username, templateId, template, includesRice, generateAllTemplateMeals } = req.body;
   if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
     return res.status(400).json({ error: "Provide ingredients to build combos." });
   }
@@ -875,18 +876,35 @@ app.post("/api/combos/build", async (req, res) => {
   await updateUserComboRules(uid, activeRules);
 
   try {
-    const { combos: built, sessionId } = await buildCombosGlobalFirst({
+    const buildForAllMeals =
+      !!generateAllTemplateMeals && activeTemplate && templateMealSlots(activeTemplate).length > 1;
+    const mealSlotsToBuild = buildForAllMeals
+      ? templateMealSlots(activeTemplate!).map((slot) => ({
+          slot,
+          label: uiSlotFromMealSlot(slot),
+        }))
+      : [{ slot: mealSlot, label: categoryLabel }];
+
+    const { combos: built, sessionId, meals, combosByMeal } = await buildCombosForMealSlots({
       userId: uid,
       ingredients,
       rules: activeRules,
-      category: categoryLabel,
+      mealSlots: mealSlotsToBuild,
       template: activeTemplate,
       includesRice: hasRice,
     });
 
     if (built.length === 0) {
+      const catalogCount = (await getDishesByIngredientNames(ingredients)).length;
+      const failure = describeComboBuildFailure({
+        catalogCount,
+        mealSlot,
+        template: activeTemplate,
+      });
       return res.status(404).json({
-        error: "No dishes in catalog for these ingredients. Run Discover Dishes first.",
+        error: failure.error,
+        code: failure.code,
+        catalogCount,
       });
     }
 
@@ -897,16 +915,23 @@ app.post("/api/combos/build", async (req, res) => {
         name: combo.name,
         dishIds: combo.dishIds,
         subComponents: combo.subComponents,
-        category: categoryLabel,
+        category: combo.mealLabel || categoryLabel,
         source: combo.source,
         globalComboId: combo.globalComboId,
       });
     }
 
-    const meals = combosToMeals(built, categoryLabel);
     meals.forEach((meal) => INITIAL_MEALS.unshift(meal as any));
 
-    res.json({ combos: built, meals, sessionId, template: activeTemplate, category: categoryLabel });
+    res.json({
+      combos: built,
+      meals,
+      sessionId,
+      template: activeTemplate,
+      category: categoryLabel,
+      generateAllTemplateMeals: buildForAllMeals,
+      combosByMeal,
+    });
   } catch (error: any) {
     console.error("Combo build failed:", error);
     res.status(500).json({ error: "Failed to build meal combos from catalog." });

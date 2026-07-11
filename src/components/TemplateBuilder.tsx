@@ -85,9 +85,11 @@ export default function TemplateBuilder({
 }: TemplateBuilderProps) {
   const [draft, setDraft] = useState<MealTemplate>(() => initDraft(editing));
   const [listMode, setListMode] = useState(!editing);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(editing?.id ?? null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [addPickerFor, setAddPickerFor] = useState<MealSlot | null>(null);
+  const isEditingExisting = !!editingTemplateId;
 
   const meals = draft.meals ?? createBlankMealPlan();
   const preview = useMemo(() => formatTemplatePreview({ ...draft, meals }), [draft, meals]);
@@ -138,7 +140,14 @@ export default function TemplateBuilder({
       const prepared = prepareTemplateForSave({ ...draft, meals });
       const result = await onSave(prepared);
       if (result.ok) {
-        onClose();
+        if (editing) {
+          onClose();
+        } else {
+          setListMode(true);
+          setEditingTemplateId(null);
+          setDraft(blankTemplate());
+          setAddPickerFor(null);
+        }
       } else {
         setSaveError(result.error || "Could not save template. Please try again.");
       }
@@ -196,7 +205,10 @@ export default function TemplateBuilder({
                     type="button"
                     onClick={() => {
                       setDraft(initDraft(tpl));
+                      setEditingTemplateId(tpl.id);
                       setListMode(false);
+                      setSaveError(null);
+                      setAddPickerFor(null);
                     }}
                     className="text-[10px] font-mono uppercase text-bakedclay font-bold cursor-pointer"
                   >
@@ -211,7 +223,10 @@ export default function TemplateBuilder({
             type="button"
             onClick={() => {
               setDraft(blankTemplate());
+              setEditingTemplateId(null);
               setListMode(false);
+              setSaveError(null);
+              setAddPickerFor(null);
             }}
             className="w-full py-3 rounded-xl border-2 border-dashed border-matcha/40 text-xs font-bold text-espresso/70 hover:border-bakedclay hover:text-bakedclay cursor-pointer flex items-center justify-center gap-2"
           >
@@ -228,7 +243,7 @@ export default function TemplateBuilder({
       <div className="bg-cream w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-[28px] sm:rounded-[28px] border border-matcha shadow-premium p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-display font-bold text-lg text-espresso">
-            {editing ? "Edit Template" : "New Template"}
+            {isEditingExisting ? "Edit Template" : "New Template"}
           </h2>
           <button type="button" onClick={onClose} className="text-espresso/50 hover:text-espresso cursor-pointer">
             <X className="w-5 h-5" />
@@ -364,7 +379,17 @@ export default function TemplateBuilder({
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => (editing ? onClose() : setListMode(true))}
+            onClick={() => {
+              if (editing) {
+                onClose();
+                return;
+              }
+              setListMode(true);
+              setEditingTemplateId(null);
+              setDraft(blankTemplate());
+              setSaveError(null);
+              setAddPickerFor(null);
+            }}
             disabled={isSaving}
             className="flex-1 py-3 rounded-xl border border-matcha text-xs font-bold text-espresso cursor-pointer disabled:opacity-50"
           >

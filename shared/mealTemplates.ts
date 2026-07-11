@@ -112,17 +112,25 @@ const NAME_HINTS: Array<{ pattern: RegExp; category: DishCategory }> = [
   { pattern: /\b(kulambu|kuzhambu|gravy|rasam)\b/i, category: "kulambu" },
   { pattern: /\b(curry)\b/i, category: "curry" },
   { pattern: /\b(biryani|pulao|mixed.?rice|lemon.?rice|tamarind.?rice)\b/i, category: "mixed_rice" },
+  { pattern: /\b(carrot|beetroot|coconut|tomato|lemon|mint|curd|beans|peas|capsicum|brinjal)\s+rice\b/i, category: "mixed_rice" },
+  { pattern: /\b\w+\s+rice\b/i, category: "mixed_rice" },
   { pattern: /\b(egg|omelette|omelet|chicken|fish|meen|mutton|prawn|shrimp)\b/i, category: "protein" },
 ];
 
 export function resolveDishCategory(dishType: string | null | undefined, name?: string): DishCategory {
   const type = (dishType ?? "").toLowerCase().trim();
-  if (type && DISH_TYPE_TO_CATEGORY[type]) return DISH_TYPE_TO_CATEGORY[type];
+  const nameHaystack = (name ?? "").toLowerCase();
 
-  const haystack = `${type} ${name ?? ""}`.toLowerCase();
+  for (const hint of NAME_HINTS) {
+    if (nameHaystack && hint.pattern.test(nameHaystack)) return hint.category;
+  }
+
+  const haystack = `${type} ${nameHaystack}`.trim();
   for (const hint of NAME_HINTS) {
     if (hint.pattern.test(haystack)) return hint.category;
   }
+
+  if (type && DISH_TYPE_TO_CATEGORY[type]) return DISH_TYPE_TO_CATEGORY[type];
 
   if (type.includes("gravy") || type.includes("kulambu")) return "kulambu";
   if (type.includes("side") || type.includes("poriyal")) return "side_poriyal";

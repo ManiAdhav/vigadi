@@ -11,6 +11,7 @@ export interface DishSeed {
   pairsWith: string[];
   description: string;
   channelName?: string;
+  youtubeVideoId?: string;
 }
 
 export interface IngredientDishBlock {
