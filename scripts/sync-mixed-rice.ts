@@ -1,11 +1,11 @@
 import fs from "fs";
 import path from "path";
-import { execSync } from "child_process";
 import pg from "pg";
 import dotenv from "dotenv";
 import { extractYouTubeVideoId } from "../server/jsonUtils";
 import { resolveDishCategory } from "../shared/mealTemplates";
 import {
+  type DishSeed,
   type IngredientDishBlock,
   resolveIngredientId,
 } from "./parse-dish-rtf";
@@ -13,80 +13,107 @@ import {
 dotenv.config({ path: ".env.local" });
 dotenv.config();
 
-const BATCH_DIR = path.resolve(process.cwd(), "../Vigadi_Dishes/Dish_With YT");
+const DEFAULT_INGREDIENT_SLUG = "rice";
+const DEFAULT_SOURCE = "mixed_rice_catalog";
+const DEFAULT_JSON = path.join(
+  process.cwd(),
+  "data/staging/dishes-with-yt-mixed-rices-tamil-nadu.json"
+);
 
-function fileToText(filePath: string): string {
-  const raw = fs.readFileSync(filePath, "utf8");
-  if (raw.trimStart().startsWith("{\\rtf")) {
-    return execSync(`textutil -convert txt -stdout ${JSON.stringify(filePath)}`, {
-      encoding: "utf8",
-      maxBuffer: 50 * 1024 * 1024,
-    });
-  }
-  return raw;
+type RawDish = Partial<DishSeed> & {
+  youtube_url?: string;
+  dish_type?: string;
+  spice_level?: string;
+  main_ingredients?: string[];
+  pairs_with?: string[];
+  channel_name?: string;
+};
+
+function normalizeDish(raw: RawDish): DishSeed {
+  const dishType = (raw.dishType ?? raw.dish_type ?? "mixed_rice").trim();
+  return {
+    name: raw.name?.trim() ?? "",
+    youtubeUrl: raw.youtubeUrl ?? raw.youtube_url ?? "",
+    dishType,
+    spiceLevel: raw.spiceLevel ?? raw.spice_level ?? "medium",
+    mainIngredients: raw.mainIngredients ?? raw.main_ingredients ?? [],
+    pairsWith: raw.pairsWith ?? raw.pairs_with ?? [],
+    description: raw.description ?? "",
+    channelName: raw.channelName ?? raw.channel_name,
+  };
 }
 
-function extractJsonArray(text: string): IngredientDishBlock[] {
-  const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
-  if (start < 0 || end < 0) {
-    throw new Error("No JSON array found in batch file");
+function parsePayload(text: string): IngredientDishBlock[] {
+  const payload = JSON.parse(text) as unknown;
+
+  if (Array.isArray(payload)) {
+    if (payload.length === 0) return [];
+
+    const first = payload[0] as Record<string, unknown>;
+    if ("ingredientId" in first && "dishes" in first) {
+      return (payload as IngredientDishBlock[]).map((block) => ({
+        ingredientId: block.ingredientId,
+        ingredientCanonical: block.ingredientCanonical,
+        dishes: block.dishes.map((dish) => normalizeDish(dish)),
+      }));
+    }
+
+    return [
+      {
+        ingredientId: DEFAULT_INGREDIENT_SLUG,
+        ingredientCanonical: "Rice",
+        dishes: (payload as RawDish[]).map((dish) => normalizeDish(dish)),
+      },
+    ];
   }
-  const payload = text.slice(start, end + 1);
-  try {
-    return JSON.parse(payload) as IngredientDishBlock[];
-  } catch (err) {
-    const lastCompleteDish = payload.lastIndexOf("      }");
-    if (lastCompleteDish < 0) throw err;
-    const repaired = `${payload.slice(0, lastCompleteDish + 7)}\n    ]\n  }\n]`;
-    const blocks = JSON.parse(repaired) as IngredientDishBlock[];
-    console.warn(
-      `  ⚠ Batch file appears truncated — synced ${blocks.length} complete ingredient blocks only`
-    );
-    return blocks;
+
+  if (payload && typeof payload === "object") {
+    const record = payload as Record<string, unknown>;
+    if (Array.isArray(record.dishes)) {
+      return [
+        {
+          ingredientId:
+            typeof record.ingredientId === "string"
+              ? record.ingredientId
+              : DEFAULT_INGREDIENT_SLUG,
+          ingredientCanonical:
+            typeof record.ingredientCanonical === "string"
+              ? record.ingredientCanonical
+              : "Rice",
+          dishes: (record.dishes as RawDish[]).map((dish) => normalizeDish(dish)),
+        },
+      ];
+    }
   }
+
+  throw new Error(
+    "Unsupported JSON shape. Expected IngredientDishBlock[], DishSeed[], or { dishes: [...] }."
+  );
 }
 
-function loadBatch(batchNumber: number): IngredientDishBlock[] {
-  const filePath = path.join(BATCH_DIR, `Batch ${batchNumber}.json`);
+function loadBlocks(filePath: string): IngredientDishBlock[] {
   if (!fs.existsSync(filePath)) {
-    console.error(`Batch file not found: ${filePath}`);
+    console.error(`Mixed rice file not found: ${filePath}`);
+    console.error(
+      "Copy your local file to data/staging/dishes-with-yt-mixed-rices-tamil-nadu.json or pass a path."
+    );
     process.exit(1);
   }
-  const text = fileToText(filePath);
-  return mergeBlocksByCatalogId(extractJsonArray(text));
-}
 
-/** Collapse blocks that resolve to the same catalog ingredient (e.g. brinjal-long + brinjal-small → brinjal). */
-function mergeBlocksByCatalogId(blocks: IngredientDishBlock[]): IngredientDishBlock[] {
-  const merged = new Map<string, IngredientDishBlock>();
+  const text = fs.readFileSync(filePath, "utf8");
+  const blocks = parsePayload(text);
 
   for (const block of blocks) {
-    const catalogId = resolveIngredientId(block.ingredientId) ?? block.ingredientId;
-    const existing = merged.get(catalogId);
-    if (!existing) {
-      merged.set(catalogId, {
-        ingredientId: catalogId,
-        ingredientCanonical: block.ingredientCanonical,
-        dishes: [...block.dishes],
-      });
-      continue;
-    }
-
-    const seen = new Set(existing.dishes.map((d) => d.name.toLowerCase()));
+    block.dishes = block.dishes.filter((dish) => dish.name);
     for (const dish of block.dishes) {
-      const key = dish.name.toLowerCase();
-      if (!seen.has(key)) {
-        existing.dishes.push(dish);
-        seen.add(key);
-      }
+      if (!dish.dishType) dish.dishType = "mixed_rice";
     }
   }
 
-  return [...merged.values()];
+  return blocks.filter((block) => block.dishes.length > 0);
 }
 
-async function syncIngredientBlock(
+async function syncBlock(
   client: pg.Client,
   block: IngredientDishBlock
 ): Promise<{ inserted: number; updated: number; removed: number; missing: boolean }> {
@@ -97,7 +124,7 @@ async function syncIngredientBlock(
   );
 
   if (!ingredient.rows[0]) {
-    console.warn(`  ✗ No DB ingredient for catalog slug: ${catalogId} (${block.ingredientId})`);
+    console.warn(`  ✗ No DB ingredient for catalog slug: ${catalogId}`);
     return { inserted: 0, updated: 0, removed: 0, missing: true };
   }
 
@@ -112,6 +139,8 @@ async function syncIngredientBlock(
     for (const dish of block.dishes) {
       const videoId = extractYouTubeVideoId(dish.youtubeUrl ?? "");
       const dishCategory = resolveDishCategory(dish.dishType, dish.name);
+      const pairsWith = dish.pairsWith?.length ? dish.pairsWith : [];
+
       const result = await client.query<{ id: number; xmax: string }>(
         `INSERT INTO dishes (
           ingredient_id, name, youtube_url, youtube_video_id, dish_type, dish_category, spice_level,
@@ -138,10 +167,10 @@ async function syncIngredientBlock(
           dishCategory,
           dish.spiceLevel,
           JSON.stringify(dish.mainIngredients ?? []),
-          JSON.stringify(dish.pairsWith?.length ? dish.pairsWith : ["Rice"]),
+          JSON.stringify(pairsWith),
           dish.description ?? null,
           dish.channelName ?? null,
-          "catalog_seed",
+          DEFAULT_SOURCE,
         ]
       );
 
@@ -154,15 +183,16 @@ async function syncIngredientBlock(
     const removed = await client.query<{ id: number }>(
       `DELETE FROM dishes
        WHERE ingredient_id = $1
-         AND LOWER(name) <> ALL($2::text[])
+         AND source = $2
+         AND LOWER(name) <> ALL($3::text[])
        RETURNING id`,
-      [ingredientId, keepNames]
+      [ingredientId, DEFAULT_SOURCE, keepNames]
     );
 
     await client.query("COMMIT");
 
     console.log(
-      `  ✓ ${ingredientName} (${catalogId}): ${block.dishes.length} dishes — ${inserted} new, ${updated} updated, ${removed.rowCount ?? 0} removed`
+      `  ✓ ${ingredientName} (${catalogId}): ${block.dishes.length} mixed rice dishes — ${inserted} new, ${updated} updated, ${removed.rowCount ?? 0} removed`
     );
 
     return {
@@ -178,22 +208,17 @@ async function syncIngredientBlock(
 }
 
 async function main() {
-  const batchArg = process.argv[2];
-  if (!batchArg || !/^\d+$/.test(batchArg)) {
-    console.error("Usage: tsx scripts/sync-dish-batch.ts <batch-number>");
-    console.error("Example: npm run sync:dishes -- 1");
-    process.exit(1);
-  }
-
-  const batchNumber = Number(batchArg);
+  const filePath = path.resolve(process.argv[2] ?? DEFAULT_JSON);
   const url = process.env.DATABASE_URL;
   if (!url) {
-    console.error("DATABASE_URL is required. Set it in repo/.env.local");
+    console.error("DATABASE_URL is required. Set it in .env.local or the environment.");
     process.exit(1);
   }
 
-  const blocks = loadBatch(batchNumber);
-  console.log(`\nSyncing Batch ${batchNumber}: ${blocks.length} ingredients, ${blocks.reduce((n, b) => n + b.dishes.length, 0)} dishes\n`);
+  const blocks = loadBlocks(filePath);
+  const dishCount = blocks.reduce((total, block) => total + block.dishes.length, 0);
+  console.log(`\nSyncing mixed rice catalog from ${filePath}`);
+  console.log(`${blocks.length} ingredient blocks, ${dishCount} dishes\n`);
 
   const client = new pg.Client({
     connectionString: url,
@@ -207,7 +232,7 @@ async function main() {
   let missingIngredients = 0;
 
   for (const block of blocks) {
-    const stats = await syncIngredientBlock(client, block);
+    const stats = await syncBlock(client, block);
     totalInserted += stats.inserted;
     totalUpdated += stats.updated;
     totalRemoved += stats.removed;
@@ -222,7 +247,7 @@ async function main() {
 
   await client.end();
 
-  console.log(`\nBatch ${batchNumber} complete:`);
+  console.log("\nMixed rice sync complete:");
   console.log(`  ${totalInserted} inserted, ${totalUpdated} updated, ${totalRemoved} removed`);
   if (missingIngredients) {
     console.log(`  ${missingIngredients} dishes skipped — ingredient not in DB`);
