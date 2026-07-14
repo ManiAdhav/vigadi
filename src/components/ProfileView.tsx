@@ -1,9 +1,22 @@
-import { Heart, Flame, Plus, Sparkles, BookOpen, Bookmark, Layers, Clock, Check, Camera as CameraIcon, MapPin } from "lucide-react";
-import { useState } from "react";
-import { Meal } from "../types";
+import { Heart, Flame, Plus, Sparkles, BookOpen, Bookmark, Layers, Clock, Check, Camera as CameraIcon, MapPin, Settings2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Meal, MealTemplate } from "../types";
+import TemplateBuilder from "./TemplateBuilder";
+import { formatTemplatePreview, normalizeTemplate, templateMealsLabel } from "../../shared/mealTemplates";
 
 interface ProfileViewProps {
   onSelectMealById: (id: string) => void;
+}
+
+const USER_ID_KEY = "vigadi_user_id";
+
+function getUserId() {
+  let id = localStorage.getItem(USER_ID_KEY);
+  if (!id) {
+    id = `user-${Date.now()}`;
+    localStorage.setItem(USER_ID_KEY, id);
+  }
+  return id;
 }
 
 export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
@@ -21,6 +34,67 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
   const [locationInput, setLocationInput] = useState(userLocation);
   const [isEditingRules, setIsEditingRules] = useState(false);
   const [customRulesInput, setCustomRulesInput] = useState(mealRules);
+  const [templates, setTemplates] = useState<MealTemplate[]>([]);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [templateToEdit, setTemplateToEdit] = useState<MealTemplate | null>(null);
+
+  const loadTemplates = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/templates/${getUserId()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setTemplates(data.templates || []);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
+
+  const saveTemplate = async (template: MealTemplate): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`/api/templates/${getUserId()}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { ok: false, error: err.error || `Save failed (${res.status})` };
+      }
+      const data = await res.json();
+      setTemplates(data.templates || []);
+      await loadTemplates();
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Network error — check your connection." };
+    }
+  };
+
+  const duplicateTemplate = async (templateId: string) => {
+    const res = await fetch(`/api/templates/${getUserId()}/${templateId}/duplicate`, {
+      method: "POST",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setTemplates(data.templates || []);
+    }
+  };
+
+  const deleteTemplate = async (templateId: string) => {
+    const res = await fetch(`/api/templates/${getUserId()}/${templateId}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setTemplates(data.templates || []);
+      await loadTemplates();
+      return true;
+    }
+    return false;
+  };
 
   // Mock statistics matching the screenshot
   const stats = [
@@ -404,6 +478,66 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
         </div>
       </div>
 
+      {/* Meal Templates */}
+      <div className="bg-cream border border-matcha p-5 rounded-[22px] shadow-warm space-y-4">
+        <div className="flex items-center justify-between border-b border-matcha/20 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-espresso/10 text-espresso rounded-lg">
+              <Layers className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-mono uppercase tracking-widest text-espresso font-bold">
+                Meal Templates
+              </h3>
+              <p className="text-[10px] text-espresso/60 font-semibold">
+                Add, edit, or delete your meal plans
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setTemplateToEdit(null);
+              setShowTemplateManager(true);
+            }}
+            className="text-[10px] font-mono uppercase text-bakedclay font-bold flex items-center gap-1 cursor-pointer"
+          >
+            <Settings2 className="w-3.5 h-3.5" />
+            Manage
+          </button>
+        </div>
+
+        {templates.length === 0 ? (
+          <p className="text-[11px] text-espresso/60 italic">No templates yet — tap Manage to create one.</p>
+        ) : (
+          <div className="space-y-2">
+            {templates.map((tpl) => (
+              <div
+                key={tpl.id}
+                className="bg-[#F1F3ED] border border-matcha/10 px-4 py-2.5 rounded-xl flex items-center justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-espresso truncate">{tpl.name}</p>
+                  <p className="text-[10px] text-espresso/50 font-mono">
+                    {templateMealsLabel(tpl)} · {formatTemplatePreview(normalizeTemplate(tpl))}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTemplateToEdit(tpl);
+                    setShowTemplateManager(true);
+                  }}
+                  className="text-[10px] uppercase font-mono font-bold text-[#2E9D70] hover:underline cursor-pointer shrink-0"
+                >
+                  Edit
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Recently Viewed meals list row */}
       <div className="space-y-3.5">
         <div className="flex justify-between items-center">
@@ -442,6 +576,21 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
           ))}
         </div>
       </div>
+
+      {showTemplateManager && (
+        <TemplateBuilder
+          templates={templates}
+          editing={templateToEdit}
+          onSave={saveTemplate}
+          onDuplicate={duplicateTemplate}
+          onDelete={deleteTemplate}
+          onClose={() => {
+            setShowTemplateManager(false);
+            setTemplateToEdit(null);
+            loadTemplates();
+          }}
+        />
+      )}
     </div>
   );
 }

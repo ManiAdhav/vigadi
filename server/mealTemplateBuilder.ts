@@ -1,6 +1,9 @@
-import { DishRow, getDishesByIngredientNames, parseDishRow, getTasteProfile } from "./db";
+import { DishRow, getCatalogDishesForBuild, parseDishRow, getTasteProfile } from "./db";
 import {
-  DishCategory,
+  expandCatalogIngredients,
+  filterMixedRiceForIngredients,
+} from "../shared/catalogIngredients";
+import {
   DishSlot,
   MealTemplate,
   MealSlot,
@@ -14,6 +17,7 @@ import {
   shouldFillSlotAtMeal,
   slotAcceptsCategory,
 } from "../shared/mealTemplates";
+import type { DishCategory } from "../shared/mealTemplates";
 import { BuiltCombo, scoreDishForTaste, MAX_COMBOS } from "./comboBuilder";
 
 export interface UnfilledSlot {
@@ -34,7 +38,12 @@ function getDishCategory(dish: DishRow): DishCategory {
   return resolveDishCategory(dish.dish_type, dish.name);
 }
 
-function dishesMatchingSlot(allDishes: DishRow[], slot: DishSlot, usedIds: Set<number>): DishRow[] {
+function dishesMatchingSlot(
+  allDishes: DishRow[],
+  slot: DishSlot,
+  usedIds: Set<number>,
+  userIngredients: string[] = []
+): DishRow[] {
   if (slot.dishId) {
     const pinned = allDishes.find((d) => d.id === slot.dishId && !usedIds.has(d.id));
     return pinned ? [pinned] : [];
@@ -49,7 +58,13 @@ function dishesMatchingSlot(allDishes: DishRow[], slot: DishSlot, usedIds: Set<n
     );
     if (named.length > 0) return named;
   }
-  return allDishes.filter((d) => !usedIds.has(d.id) && slotAcceptsCategory(slot, getDishCategory(d)));
+  let candidates = allDishes.filter(
+    (d) => !usedIds.has(d.id) && slotAcceptsCategory(slot, getDishCategory(d))
+  );
+  if (slot.category === "mixed_rice") {
+    candidates = filterMixedRiceForIngredients(candidates, userIngredients);
+  }
+  return candidates;
 }
 
 function suggestForSlot(slot: DishSlot, available: DishRow[]): string | undefined {
@@ -148,9 +163,14 @@ export async function buildCombosFromTemplate(params: {
   const maxCombos = params.maxCombos ?? MAX_COMBOS;
   const excludeIds = new Set(params.excludeDishIds ?? []);
 
-  const catalogDishes = (await getDishesByIngredientNames(params.ingredients)).filter(
-    (d) => !excludeIds.has(d.id)
-  );
+  const catalogDishes = (
+    await getCatalogDishesForBuild({
+      ingredients: params.ingredients,
+      includesRice: params.includesRice,
+      template: params.template,
+      mealSlot,
+    })
+  ).filter((d) => !excludeIds.has(d.id));
   if (catalogDishes.length === 0) return [];
 
   const allSlots = getSlotsForMeal(template, mealSlot);
@@ -174,7 +194,7 @@ export async function buildCombosFromTemplate(params: {
     const unfilled: UnfilledSlot[] = [];
 
     fillableSlots.forEach((slot, slotIndex) => {
-      const candidates = dishesMatchingSlot(catalogDishes, slot, usedIds);
+      const candidates = dishesMatchingSlot(catalogDishes, slot, usedIds, params.ingredients);
       const slotPicked = pickForSlot(candidates, slot, taste, variant, usedIngredients);
 
       if (slotPicked.length < slot.count) {

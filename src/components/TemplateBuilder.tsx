@@ -324,7 +324,11 @@ export default function TemplateBuilder({
                         <label className="text-[9px] font-mono uppercase text-espresso/40 font-bold">
                           Search or type dish name
                         </label>
-                        <DishSearchInput onSelect={(slot) => addDish(id, slot)} />
+                        <DishSearchInput
+                          onSelect={(slot) => addDish(id, slot)}
+                          category={id === "lunch" ? "mixed_rice" : undefined}
+                          placeholder={id === "lunch" ? "Search mixed rice…" : "Search dishes…"}
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[9px] font-mono uppercase text-espresso/40 font-bold">

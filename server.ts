@@ -8,6 +8,7 @@ import {
   ensureUserProfile,
   getDishesGroupedByIngredient,
   getDishesByIngredientNames,
+  getCatalogDishesForBuild,
   searchDishes,
   getFeedbackForUser,
   getUserProfile,
@@ -36,6 +37,7 @@ import {
   inferDefaultMealSlot,
   uiSlotFromMealSlot,
 } from "./shared/mealTemplates";
+import type { DishCategory } from "./shared/mealTemplates";
 import { discoverAndStoreIngredients } from "./server/discovery";
 import { buildCombosForMealSlots } from "./server/globalComboService";
 import { describeComboBuildFailure } from "./server/comboBuildErrors";
@@ -819,20 +821,36 @@ app.get("/api/catalog/dishes", async (req, res) => {
   const raw = req.query.ingredients;
   const ingredients =
     typeof raw === "string" ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
-  const grouped = await getDishesGroupedByIngredient(ingredients);
-  const catalog = Object.fromEntries(
-    Object.entries(grouped).map(([ing, rows]) => [ing, rows.map(parseDishRow)])
-  );
-  res.json({ catalog, totalDishes: Object.values(catalog).reduce((sum, arr) => sum + arr.length, 0) });
+  const category =
+    typeof req.query.category === "string" ? (req.query.category as DishCategory) : undefined;
+  const includesRice = req.query.includesRice === "true";
+  const dishes = await getCatalogDishesForBuild({
+    ingredients,
+    includesRice,
+    dishCategory: category,
+  });
+  const grouped: Record<string, ReturnType<typeof parseDishRow>[]> = {};
+  for (const row of dishes) {
+    const key = row.ingredient_name ?? "Unknown";
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(parseDishRow(row));
+  }
+  res.json({
+    catalog: grouped,
+    totalDishes: dishes.length,
+    category: category ?? null,
+  });
 });
 
 app.get("/api/catalog/dishes/search", async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const limit = Math.min(Number(req.query.limit) || 10, 20);
+  const category =
+    typeof req.query.category === "string" ? (req.query.category as DishCategory) : undefined;
   if (!q) {
     return res.json({ dishes: [] });
   }
-  const rows = await searchDishes(q, limit);
+  const rows = await searchDishes(q, limit, category);
   res.json({ dishes: rows.map(parseDishRow) });
 });
 
@@ -895,7 +913,14 @@ app.post("/api/combos/build", async (req, res) => {
     });
 
     if (built.length === 0) {
-      const catalogCount = (await getDishesByIngredientNames(ingredients)).length;
+      const catalogCount = (
+        await getCatalogDishesForBuild({
+          ingredients,
+          includesRice: hasRice,
+          template: activeTemplate,
+          mealSlot,
+        })
+      ).length;
       const failure = describeComboBuildFailure({
         catalogCount,
         mealSlot,

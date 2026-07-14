@@ -12,11 +12,13 @@ export interface DishSearchResult {
 interface DishSearchInputProps {
   onSelect: (slot: ReturnType<typeof slotFromDishName>) => void;
   placeholder?: string;
+  category?: string;
 }
 
 export default function DishSearchInput({
   onSelect,
   placeholder = "Search dishes…",
+  category,
 }: DishSearchInputProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<DishSearchResult[]>([]);
@@ -35,7 +37,12 @@ export default function DishSearchInput({
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/catalog/dishes/search?q=${encodeURIComponent(trimmed)}&limit=8`);
+      const params = new URLSearchParams({
+        q: trimmed,
+        limit: "8",
+      });
+      if (category) params.set("category", category);
+      const res = await fetch(`/api/catalog/dishes/search?${params.toString()}`);
       if (!res.ok) {
         setResults([]);
         setOpen(false);
@@ -52,7 +59,7 @@ export default function DishSearchInput({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [category]);
 
   useEffect(() => {
     const timer = setTimeout(() => runSearch(query), 200);

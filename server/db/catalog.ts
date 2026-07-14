@@ -3,6 +3,10 @@ import { normalizeIngredient } from "./ingredientSignature";
 import { resolveToCanonical, resolveIngredient } from "./ingredientResolver";
 import { resolveDishCategory } from "../../shared/mealTemplates";
 import {
+  expandCatalogIngredients,
+  filterDishesByCategory,
+} from "../../shared/catalogIngredients";
+import {
   memoryUpsertIngredient,
   memoryInsertDish,
   memoryGetDishesByIngredientNames,
@@ -155,6 +159,22 @@ export async function getDishesByIngredientNames(names: string[]): Promise<DishR
   return result.rows;
 }
 
+export async function getCatalogDishesForBuild(params: {
+  ingredients: string[];
+  includesRice?: boolean;
+  template?: import("../../shared/mealTemplates").MealTemplate;
+  mealSlot?: import("../../shared/mealTemplates").MealSlot;
+  dishCategory?: import("../../shared/mealTemplates").DishCategory;
+}): Promise<DishRow[]> {
+  const queryIngredients = expandCatalogIngredients(params.ingredients, {
+    includesRice: params.includesRice,
+    template: params.template,
+    mealSlot: params.mealSlot,
+  });
+  const dishes = await getDishesByIngredientNames(queryIngredients);
+  return filterDishesByCategory(dishes, params.dishCategory);
+}
+
 export async function getDishesGroupedByIngredient(names: string[]): Promise<Record<string, DishRow[]>> {
   const dishes = await getDishesByIngredientNames(names);
   const grouped: Record<string, DishRow[]> = {};
@@ -224,20 +244,31 @@ export async function getDishesByIds(ids: number[]): Promise<DishRow[]> {
   return result.rows;
 }
 
-export async function searchDishes(queryText: string, limit = 10): Promise<DishRow[]> {
+export async function searchDishes(
+  queryText: string,
+  limit = 10,
+  category?: import("../../shared/mealTemplates").DishCategory
+): Promise<DishRow[]> {
   const q = queryText.trim();
   if (!q) return [];
   if (!isDatabaseConfigured()) return memorySearchDishes(q, limit);
   const pattern = `%${q}%`;
   const prefix = `${q}%`;
   const result = await query<DishRow>(
-    `SELECT d.*, i.name as ingredient_name
-     FROM dishes d
-     JOIN ingredients i ON d.ingredient_id = i.id
-     WHERE d.name ILIKE $1
-     ORDER BY CASE WHEN d.name ILIKE $2 THEN 0 ELSE 1 END, d.name
-     LIMIT $3`,
-    [pattern, prefix, limit]
+    category
+      ? `SELECT d.*, i.name as ingredient_name
+         FROM dishes d
+         JOIN ingredients i ON d.ingredient_id = i.id
+         WHERE d.name ILIKE $1 AND d.dish_category = $4
+         ORDER BY CASE WHEN d.name ILIKE $2 THEN 0 ELSE 1 END, d.name
+         LIMIT $3`
+      : `SELECT d.*, i.name as ingredient_name
+         FROM dishes d
+         JOIN ingredients i ON d.ingredient_id = i.id
+         WHERE d.name ILIKE $1
+         ORDER BY CASE WHEN d.name ILIKE $2 THEN 0 ELSE 1 END, d.name
+         LIMIT $3`,
+    category ? [pattern, prefix, limit, category] : [pattern, prefix, limit]
   );
   return result.rows;
 }
