@@ -1,7 +1,7 @@
 import { query, isDatabaseConfigured } from "./pool";
 import { normalizeIngredient } from "./ingredientSignature";
 import { resolveToCanonical, resolveIngredient } from "./ingredientResolver";
-import { resolveDishCategory } from "../../shared/mealTemplates";
+import { resolveMealGroup, dishMatchesCategoryFilter } from "../../shared/mealTemplates";
 import {
   expandCatalogIngredients,
   filterDishesByCategory,
@@ -52,7 +52,7 @@ function parseJsonArray(value: string | unknown[] | null | undefined): unknown[]
 
 export function parseDishRow(row: DishRow) {
   const dishCategory =
-    row.dish_category ?? resolveDishCategory(row.dish_type, row.name);
+    row.dish_category ?? resolveMealGroup(row.dish_type, row.name);
   return {
     id: row.id,
     ingredientName: row.ingredient_name,
@@ -127,7 +127,7 @@ export async function insertDish(dish: {
         dish.youtubeVideoId ?? null,
         dish.dishType ?? null,
         dish.dishCategory ??
-          resolveDishCategory(dish.dishType, dish.name),
+          resolveMealGroup(dish.dishType, dish.name),
         dish.spiceLevel ?? null,
         JSON.stringify(dish.mainIngredients ?? []),
         JSON.stringify(dish.pairsWith ?? ["Rice"]),
@@ -247,28 +247,30 @@ export async function getDishesByIds(ids: number[]): Promise<DishRow[]> {
 export async function searchDishes(
   queryText: string,
   limit = 10,
-  category?: import("../../shared/mealTemplates").DishCategory
+  category?: string
 ): Promise<DishRow[]> {
   const q = queryText.trim();
   if (!q) return [];
-  if (!isDatabaseConfigured()) return memorySearchDishes(q, limit);
-  const pattern = `%${q}%`;
-  const prefix = `${q}%`;
-  const result = await query<DishRow>(
-    category
-      ? `SELECT d.*, i.name as ingredient_name
-         FROM dishes d
-         JOIN ingredients i ON d.ingredient_id = i.id
-         WHERE d.name ILIKE $1 AND d.dish_category = $4
-         ORDER BY CASE WHEN d.name ILIKE $2 THEN 0 ELSE 1 END, d.name
-         LIMIT $3`
-      : `SELECT d.*, i.name as ingredient_name
-         FROM dishes d
-         JOIN ingredients i ON d.ingredient_id = i.id
-         WHERE d.name ILIKE $1
-         ORDER BY CASE WHEN d.name ILIKE $2 THEN 0 ELSE 1 END, d.name
-         LIMIT $3`,
-    category ? [pattern, prefix, limit, category] : [pattern, prefix, limit]
-  );
-  return result.rows;
+  const fetchLimit = category ? limit * 4 : limit;
+  let rows: DishRow[];
+  if (!isDatabaseConfigured()) {
+    rows = memorySearchDishes(q, fetchLimit);
+  } else {
+    const pattern = `%${q}%`;
+    const prefix = `${q}%`;
+    const result = await query<DishRow>(
+      `SELECT d.*, i.name as ingredient_name
+       FROM dishes d
+       JOIN ingredients i ON d.ingredient_id = i.id
+       WHERE d.name ILIKE $1
+       ORDER BY CASE WHEN d.name ILIKE $2 THEN 0 ELSE 1 END, d.name
+       LIMIT $3`,
+      [pattern, prefix, fetchLimit]
+    );
+    rows = result.rows;
+  }
+  if (category) {
+    rows = rows.filter((d) => dishMatchesCategoryFilter(d, category));
+  }
+  return rows.slice(0, limit);
 }

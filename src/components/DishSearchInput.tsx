@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
-import { resolveDishCategory, slotFromDishName } from "../../shared/mealTemplates";
+import { resolveMealGroup, slotFromDishName } from "../../shared/mealTemplates";
 
 export interface DishSearchResult {
   id: number;
@@ -159,7 +159,7 @@ export default function DishSearchInput({
               >
                 <span className="text-xs font-semibold text-espresso block">{item.name}</span>
                 <span className="text-[10px] text-espresso/50 font-mono">
-                  {[item.ingredientName, item.dishCategory ?? resolveDishCategory(item.dishType, item.name)]
+                  {[item.ingredientName, item.dishCategory ?? resolveMealGroup(item.dishType, item.name)]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>

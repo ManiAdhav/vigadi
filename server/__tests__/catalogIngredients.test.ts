@@ -11,7 +11,7 @@ const schoolDayCombo: MealTemplate = {
   name: "School Day Combo",
   meals: {
     breakfast: [{ category: "tiffin", count: 1 }],
-    lunch: [{ category: "mixed_rice", count: 1 }],
+    lunch: [{ category: "rice", dish_type: "mixed_rice", count: 1 }],
   },
 };
 

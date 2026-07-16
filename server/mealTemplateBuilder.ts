@@ -12,18 +12,21 @@ import {
   getSlotsForMeal,
   mealSlotFromUi,
   normalizeTemplate,
+  normalizeDishSlot,
   resolveComboStaple,
-  resolveDishCategory,
+  isRiceStapleCoveredByTag,
   shouldFillSlotAtMeal,
-  slotAcceptsCategory,
+  slotMatchesDish,
+  formatDishTypeLabel,
+  formatCategoryLabel,
 } from "../shared/mealTemplates";
-import type { DishCategory } from "../shared/mealTemplates";
+import type { MealGroup } from "../shared/mealTemplates";
 import { BuiltCombo, scoreDishForTaste, MAX_COMBOS } from "./comboBuilder";
 
 export interface UnfilledSlot {
   slotIndex: number;
-  category: DishCategory;
-  options?: DishCategory[];
+  category: MealGroup;
+  options?: string[];
   note?: string;
   suggestion?: string;
 }
@@ -31,11 +34,6 @@ export interface UnfilledSlot {
 export interface TemplateBuiltCombo extends BuiltCombo {
   unfilledSlots?: UnfilledSlot[];
   templatePreview?: string;
-}
-
-function getDishCategory(dish: DishRow): DishCategory {
-  if (dish.dish_category) return dish.dish_category as DishCategory;
-  return resolveDishCategory(dish.dish_type, dish.name);
 }
 
 function dishesMatchingSlot(
@@ -54,42 +52,49 @@ function dishesMatchingSlot(
       (d) =>
         !usedIds.has(d.id) &&
         (d.name.toLowerCase().includes(needle) || needle.includes(d.name.toLowerCase())) &&
-        slotAcceptsCategory(slot, getDishCategory(d))
+        slotMatchesDish(slot, d)
     );
     if (named.length > 0) return named;
   }
   let candidates = allDishes.filter(
-    (d) => !usedIds.has(d.id) && slotAcceptsCategory(slot, getDishCategory(d))
+    (d) => !usedIds.has(d.id) && slotMatchesDish(slot, d)
   );
-  if (slot.category === "mixed_rice") {
+  const normalized = normalizeDishSlot(slot);
+  if (normalized.category === "rice" && normalized.dish_type === "mixed_rice") {
     candidates = filterMixedRiceForIngredients(candidates, userIngredients);
   }
   return candidates;
 }
 
-function suggestForSlot(slot: DishSlot, available: DishRow[]): string | undefined {
+function suggestForSlot(
+  slot: DishSlot,
+  available: DishRow[],
+  userIngredients: string[] = []
+): string | undefined {
   if (available.length > 0) return undefined;
+  const normalized = normalizeDishSlot(slot);
   if (slot.dishName) {
     return `Add ingredients for "${slot.dishName}" or discover dishes first`;
   }
-  const label = slot.options?.length
-    ? [slot.category, ...slot.options].join(" or ")
-    : slot.category;
-  const sample = allIngredientHints(slot);
+  if (normalized.category === "rice" && (!normalized.dish_type || normalized.dish_type === "plain_rice")) {
+    return "Add Rice as an ingredient tag to include plain rice with this meal";
+  }
+  const label = normalized.dish_type
+    ? formatDishTypeLabel(normalized.dish_type)
+    : normalized.options?.length
+      ? normalized.options.map(formatDishTypeLabel).join(" or ")
+      : formatCategoryLabel(normalized.category);
+  const sample = allIngredientHints(normalized);
   return `Add ${sample} to unlock ${label} dishes`;
 }
 
 function allIngredientHints(slot: DishSlot): string {
-  const hints: Record<DishCategory, string> = {
+  const hints: Record<MealGroup, string> = {
     tiffin: "idli rice or rava",
-    kulambu: "tomato or tamarind",
-    mixed_rice: "lemon or tamarind",
-    side_poriyal: "potato or beans",
-    protein: "egg or chicken",
+    gravy: "tomato or tamarind",
+    rice: "lemon or tamarind",
+    side: "potato or beans",
     chutney: "coconut",
-    sambar: "toor dal",
-    curry: "onion and tomato",
-    rice_staple: "rice (always available)",
   };
   return hints[slot.category] ?? "matching ingredients";
 }
@@ -112,7 +117,7 @@ function pickForSlot(
   for (const dish of sorted) {
     if (picked.length >= slot.count) break;
     const ing = (dish.ingredient_name ?? "").toLowerCase();
-    if (!usedIngredients.has(ing) || picked.length === 0) {
+    if (!usedIngredients.has(ing)) {
       picked.push(dish);
       usedIngredients.add(ing);
     }
@@ -174,8 +179,14 @@ export async function buildCombosFromTemplate(params: {
   if (catalogDishes.length === 0) return [];
 
   const allSlots = getSlotsForMeal(template, mealSlot);
-  const fillableSlots = allSlots.filter((slot) => shouldFillSlotAtMeal(slot, mealSlot));
-  const inheritedCount = allSlots.length - fillableSlots.length;
+  const fillableSlots = allSlots.filter(
+    (slot) =>
+      shouldFillSlotAtMeal(slot, mealSlot) && !isRiceStapleCoveredByTag(slot, includesRice)
+  );
+  const riceStapleCovered = allSlots.some((slot) =>
+    isRiceStapleCoveredByTag(slot, includesRice)
+  );
+  const inheritedCount = allSlots.length - fillableSlots.length - (riceStapleCovered ? 1 : 0);
 
   const preview =
     inheritedCount > 0
@@ -203,7 +214,7 @@ export async function buildCombosFromTemplate(params: {
           category: slot.category,
           options: slot.options,
           note: slot.note,
-          suggestion: suggestForSlot(slot, candidates),
+          suggestion: suggestForSlot(slot, candidates, params.ingredients),
         });
       }
 
@@ -219,7 +230,10 @@ export async function buildCombosFromTemplate(params: {
     const parsed = picked.map(parseDishRow);
     const staple = resolveComboStaple(template, mealSlot, includesRice);
     const subComponents = [...parsed.map((d) => d.name)];
-    if (staple) subComponents.push(staple);
+    if (staple) {
+      if (riceStapleCovered) subComponents.unshift(staple);
+      else subComponents.push(staple);
+    }
 
     combos.push({
       id: `combo-tpl-${Date.now()}-${variant}`,

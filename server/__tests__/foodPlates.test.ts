@@ -12,10 +12,10 @@ const balancedLunch: FoodPlate = {
   name: "Balanced Lunch",
   meal_slot: "lunch",
   slots: [
-    { category: "rice_staple", count: 1 },
-    { category: "curry", count: 1 },
-    { category: "side_poriyal", count: 2 },
-    { category: "protein", count: 1 },
+    { category: "rice", dish_type: "plain_rice", count: 1 },
+    { category: "gravy", dish_type: "curry", count: 1 },
+    { category: "side", count: 2 },
+    { category: "gravy", dish_type: "kulambu", count: 1 },
   ],
   weekdays: [0, 1, 2, 3, 4, 5, 6],
   source: "manual",
@@ -25,7 +25,7 @@ const wednesdaySalad: FoodPlate = {
   id: "plate-test-2",
   name: "Vegetable Salad",
   meal_slot: "breakfast",
-  slots: [{ category: "side_poriyal", count: 1, note: "salad" }],
+  slots: [{ category: "side", count: 1, note: "salad" }],
   weekdays: [3],
   source: "manual",
 };

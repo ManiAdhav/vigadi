@@ -43,7 +43,7 @@ function blankTemplate(): MealTemplate {
         { category: "tiffin", count: 1 },
         { category: "chutney", count: 1, options: ["sambar"] },
       ],
-      lunch: [{ category: "mixed_rice", count: 1 }],
+      lunch: [{ category: "rice", dish_type: "mixed_rice", count: 1 }],
     },
   };
 }
@@ -275,10 +275,8 @@ export default function TemplateBuilder({
                     {slots.map((slot, index) => {
                       const reuseLabel = formatReuseLabel(slot.reuse);
                       const canReuse =
-                        slot.category === "side_poriyal" ||
-                        slot.category === "protein" ||
-                        slot.category === "curry" ||
-                        slot.category === "kulambu";
+                        slot.category === "side" ||
+                        slot.category === "gravy";
                       return (
                         <li key={index} className="flex items-center gap-2 px-4 py-3">
                           <span className="flex-1 text-sm font-medium text-espresso">{formatSlotLabel(slot)}</span>

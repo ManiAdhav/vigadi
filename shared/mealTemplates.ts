@@ -1,25 +1,23 @@
 export type MealSlot = "breakfast" | "lunch" | "dinner";
 export type DayType = "school_day" | "holiday" | "any" | string;
 
-export type DishCategory =
-  | "tiffin"
-  | "kulambu"
-  | "mixed_rice"
-  | "side_poriyal"
-  | "protein"
-  | "chutney"
-  | "sambar"
-  | "curry"
-  | "rice_staple";
+/** Meal group — what role a dish plays on the plate (maps to dishes.dish_category). */
+export type MealGroup = "rice" | "gravy" | "side" | "chutney" | "tiffin";
+
+/** @alias MealGroup */
+export type DishCategory = MealGroup;
 
 export interface DishSlot {
-  category: DishCategory;
+  /** Meal group: rice, gravy, side, chutney, tiffin */
+  category: MealGroup;
+  /** Dish type within group: mixed_rice, poriyal, kulambu, etc. (maps to dishes.dish_type) */
+  dish_type?: string;
   count: number;
-  options?: DishCategory[];
+  /** OR acceptable dish types within the group */
+  options?: string[];
   note?: string;
-  /** Cook once and reuse across meals in this template */
   reuse?: "all_meals" | MealSlot;
-  /** Pin a specific catalog dish (from search) */
+  /** Pin a specific catalog dish by name/id */
   dishId?: number;
   dishName?: string;
 }
@@ -53,104 +51,311 @@ export interface DaySettings {
   holiday_override?: { date: string; is_holiday: boolean } | null;
 }
 
-export const DISH_CATEGORY_LABELS: Record<DishCategory, string> = {
-  tiffin: "Tiffin",
-  kulambu: "Kulambu",
-  mixed_rice: "Mixed Rice",
-  side_poriyal: "Side",
-  protein: "Protein",
+export const MEAL_GROUP_LABELS: Record<MealGroup, string> = {
+  rice: "Rice",
+  gravy: "Gravy",
+  side: "Side",
   chutney: "Chutney",
-  sambar: "Sambar",
-  curry: "Curry",
-  rice_staple: "Rice",
+  tiffin: "Tiffin",
 };
 
-export const ALL_DISH_CATEGORIES: DishCategory[] = [
-  "tiffin",
-  "kulambu",
-  "mixed_rice",
-  "side_poriyal",
-  "protein",
-  "chutney",
-  "sambar",
-  "curry",
-  "rice_staple",
-];
+/** @alias MEAL_GROUP_LABELS */
+export const DISH_CATEGORY_LABELS = MEAL_GROUP_LABELS;
 
-const DISH_TYPE_TO_CATEGORY: Record<string, DishCategory> = {
+export const ALL_MEAL_GROUPS: MealGroup[] = ["rice", "gravy", "side", "chutney", "tiffin"];
+
+/** @alias ALL_MEAL_GROUPS */
+export const ALL_DISH_CATEGORIES = ALL_MEAL_GROUPS;
+
+export const DISH_TYPE_LABELS: Record<string, string> = {
+  plain_rice: "Plain Rice",
+  mixed_rice: "Mixed Rice",
+  kulambu: "Kulambu",
+  curry: "Curry",
+  sambar: "Sambar",
+  rasam: "Rasam",
+  poriyal: "Poriyal",
+  fry: "Fry",
+  aviyal: "Aviyal",
+  kootu: "Kootu",
+  thoran: "Thoran",
+  chutney: "Chutney",
+  pachadi: "Pachadi",
+  thogayal: "Thogayal",
+  idli: "Idli",
+  dosa: "Dosa",
+  upma: "Upma",
+  pongal: "Pongal",
+  tiffin: "Tiffin",
+};
+
+const CANONICAL_DISH_TYPES = new Set(Object.keys(DISH_TYPE_LABELS));
+
+const RAW_TYPE_TO_CANONICAL: Record<string, string> = {
   gravy: "kulambu",
   kulambu: "kulambu",
   kuzhambu: "kulambu",
   kuzhambu_style: "kulambu",
-  rasam: "kulambu",
   curry: "curry",
   sambar: "sambar",
-  side: "side_poriyal",
-  fry: "side_poriyal",
-  poriyal: "side_poriyal",
-  roast: "side_poriyal",
-  thoran: "side_poriyal",
+  rasam: "rasam",
+  side: "poriyal",
+  fry: "fry",
+  poriyal: "poriyal",
+  roast: "fry",
+  varuval: "fry",
+  thoran: "thoran",
+  kootu: "kootu",
+  aviyal: "aviyal",
+  chutney: "chutney",
+  pachadi: "pachadi",
+  thogayal: "thogayal",
+  tiffin: "tiffin",
+  idli: "idli",
+  dosa: "dosa",
+  upma: "upma",
+  pongal: "pongal",
+  puttu: "tiffin",
+  appam: "tiffin",
+  adai: "tiffin",
+  uthappam: "tiffin",
+  mixed_rice: "mixed_rice",
+  biryani: "mixed_rice",
+  pulao: "mixed_rice",
+  plain_rice: "plain_rice",
+  rice: "plain_rice",
+  staple: "plain_rice",
+  protein: "fry",
+};
+
+const TYPE_TO_MEAL_GROUP: Record<string, MealGroup> = {
+  plain_rice: "rice",
+  mixed_rice: "rice",
+  kulambu: "gravy",
+  curry: "gravy",
+  sambar: "gravy",
+  rasam: "gravy",
+  poriyal: "side",
+  fry: "side",
+  aviyal: "side",
+  kootu: "side",
+  thoran: "side",
   chutney: "chutney",
   pachadi: "chutney",
+  thogayal: "chutney",
   tiffin: "tiffin",
   idli: "tiffin",
   dosa: "tiffin",
   upma: "tiffin",
-  mixed_rice: "mixed_rice",
-  biryani: "mixed_rice",
-  pulao: "mixed_rice",
-  protein: "protein",
-  rice: "rice_staple",
-  staple: "rice_staple",
+  pongal: "tiffin",
 };
 
-const NAME_HINTS: Array<{ pattern: RegExp; category: DishCategory }> = [
-  { pattern: /\b(idli|dosa|upma|pongal|puttu|appam|adai|uthappam)\b/i, category: "tiffin" },
-  { pattern: /\b(sambar)\b/i, category: "sambar" },
-  { pattern: /\b(chutney|pachadi|thogayal)\b/i, category: "chutney" },
-  { pattern: /\b(poriyal|varuval|fry|roast|thoran|kootu)\b/i, category: "side_poriyal" },
-  { pattern: /\b(kulambu|kuzhambu|gravy|rasam)\b/i, category: "kulambu" },
-  { pattern: /\b(curry)\b/i, category: "curry" },
-  { pattern: /\b(biryani|pulao|mixed.?rice|lemon.?rice|tamarind.?rice)\b/i, category: "mixed_rice" },
-  { pattern: /\b(carrot|beetroot|coconut|tomato|lemon|mint|curd|beans|peas|capsicum|brinjal)\s+rice\b/i, category: "mixed_rice" },
-  { pattern: /\b\w+\s+rice\b/i, category: "mixed_rice" },
-  { pattern: /\b(egg|omelette|omelet|chicken|fish|meen|mutton|prawn|shrimp)\b/i, category: "protein" },
+const NAME_TYPE_HINTS: Array<{ pattern: RegExp; dishType: string }> = [
+  { pattern: /\b(idli|dosa|upma|pongal|puttu|appam|adai|uthappam)\b/i, dishType: "tiffin" },
+  { pattern: /\b(chutney|pachadi|thogayal)\b/i, dishType: "chutney" },
+  { pattern: /\b(sambar)\b/i, dishType: "sambar" },
+  { pattern: /\b(rasam)\b/i, dishType: "rasam" },
+  { pattern: /\b(kulambu|kuzhambu)\b/i, dishType: "kulambu" },
+  { pattern: /\b(curry)\b/i, dishType: "curry" },
+  { pattern: /\b(aviyal)\b/i, dishType: "aviyal" },
+  { pattern: /\b(kootu)\b/i, dishType: "kootu" },
+  { pattern: /\b(poriyal)\b/i, dishType: "poriyal" },
+  { pattern: /\b(varuval|fry|roast|thoran)\b/i, dishType: "fry" },
+  { pattern: /\b(biryani|pulao)\b/i, dishType: "mixed_rice" },
+  { pattern: /\b(lemon|tamarind|tomato|coconut|curd|sambar)\s+rice\b/i, dishType: "mixed_rice" },
+  { pattern: /\b\w+\s+rice\b/i, dishType: "mixed_rice" },
 ];
 
-export function resolveDishCategory(dishType: string | null | undefined, name?: string): DishCategory {
+/** Legacy slot/dish_category values → meal group */
+const LEGACY_TO_GROUP: Record<string, MealGroup> = {
+  rice_staple: "rice",
+  mixed_rice: "rice",
+  kulambu: "gravy",
+  curry: "gravy",
+  sambar: "gravy",
+  side_poriyal: "side",
+  protein: "side",
+  chutney: "chutney",
+  tiffin: "tiffin",
+};
+
+/** Legacy slot category → default dish_type when migrating */
+const LEGACY_TO_DISH_TYPE: Record<string, string> = {
+  rice_staple: "plain_rice",
+  mixed_rice: "mixed_rice",
+  kulambu: "kulambu",
+  curry: "curry",
+  sambar: "sambar",
+};
+
+export function resolveDishType(dishType: string | null | undefined, name?: string): string {
   const type = (dishType ?? "").toLowerCase().trim();
   const nameHaystack = (name ?? "").toLowerCase();
 
-  for (const hint of NAME_HINTS) {
-    if (nameHaystack && hint.pattern.test(nameHaystack)) return hint.category;
+  for (const hint of NAME_TYPE_HINTS) {
+    if (nameHaystack && hint.pattern.test(nameHaystack)) return hint.dishType;
   }
-
   const haystack = `${type} ${nameHaystack}`.trim();
-  for (const hint of NAME_HINTS) {
-    if (hint.pattern.test(haystack)) return hint.category;
+  for (const hint of NAME_TYPE_HINTS) {
+    if (hint.pattern.test(haystack)) return hint.dishType;
+  }
+  if (type && RAW_TYPE_TO_CANONICAL[type]) return RAW_TYPE_TO_CANONICAL[type];
+  if (type.includes("gravy") || type.includes("kulambu")) return "kulambu";
+  if (type.includes("poriyal") || type.includes("side")) return "poriyal";
+  if (type.includes("fry") || type.includes("roast")) return "fry";
+  return type || "poriyal";
+}
+
+export function mealGroupForDishType(dishType: string): MealGroup {
+  return TYPE_TO_MEAL_GROUP[dishType] ?? "side";
+}
+
+export function resolveMealGroup(dishType: string | null | undefined, name?: string): MealGroup {
+  const canonical = resolveDishType(dishType, name);
+  return mealGroupForDishType(canonical);
+}
+
+/** @deprecated use resolveMealGroup */
+export function resolveDishCategory(dishType: string | null | undefined, name?: string): MealGroup {
+  return resolveMealGroup(dishType, name);
+}
+
+export function normalizeSlotCategory(category: string): MealGroup {
+  return LEGACY_TO_GROUP[category] ?? (category as MealGroup);
+}
+
+export function normalizeDishSlot(slot: DishSlot): DishSlot {
+  const legacyType = LEGACY_TO_DISH_TYPE[slot.category];
+  const category = normalizeSlotCategory(slot.category);
+  const dish_type =
+    slot.dish_type ??
+    legacyType ??
+    (slot.options?.length === 1 && CANONICAL_DISH_TYPES.has(slot.options[0])
+      ? slot.options[0]
+      : undefined);
+  const options = slot.options
+    ?.map((o) => (LEGACY_TO_DISH_TYPE[o] ? LEGACY_TO_DISH_TYPE[o] : LEGACY_TO_GROUP[o] ? o : o))
+    .filter((o) => o !== dish_type)
+    .filter((o, i, arr) => arr.indexOf(o) === i);
+  return {
+    ...slot,
+    category,
+    dish_type,
+    options: options?.length ? options : undefined,
+  };
+}
+
+export function slotMatchesDish(
+  slot: DishSlot,
+  dish: { dish_category?: string | null; dish_type?: string | null; name: string }
+): boolean {
+  const normalized = normalizeDishSlot(slot);
+  const dishType = resolveDishType(dish.dish_type, dish.name);
+  const group = effectiveMealGroup(dish);
+
+  if (normalized.dishName?.trim()) {
+    const needle = normalized.dishName.trim().toLowerCase();
+    const matchesName =
+      dish.name.toLowerCase().includes(needle) || needle.includes(dish.name.toLowerCase());
+    if (!matchesName) return false;
   }
 
-  if (type && DISH_TYPE_TO_CATEGORY[type]) return DISH_TYPE_TO_CATEGORY[type];
-
-  if (type.includes("gravy") || type.includes("kulambu")) return "kulambu";
-  if (type.includes("side") || type.includes("poriyal")) return "side_poriyal";
-  return "side_poriyal";
+  if (normalized.dish_type) {
+    return dishType === normalized.dish_type;
+  }
+  if (normalized.options?.length) {
+    if (normalized.options.includes(dishType)) return true;
+    const optionGroups = normalized.options
+      .map((o) => LEGACY_TO_GROUP[o] ?? ((ALL_MEAL_GROUPS as string[]).includes(o) ? o : null))
+      .filter(Boolean) as MealGroup[];
+    if (optionGroups.length && optionGroups.includes(group)) return true;
+    return normalized.options.some((o) => {
+      const optType = LEGACY_TO_DISH_TYPE[o] ?? o;
+      return dishType === optType;
+    });
+  }
+  return group === normalized.category;
 }
 
-export function slotAcceptsCategory(slot: DishSlot, category: DishCategory): boolean {
-  if (slot.category === category) return true;
-  return (slot.options ?? []).includes(category);
+export function slotAcceptsCategory(slot: DishSlot, group: MealGroup): boolean {
+  const normalized = normalizeDishSlot(slot);
+  if (normalized.category === group) return true;
+  const optionGroups = (normalized.options ?? [])
+    .map((o) => LEGACY_TO_GROUP[o] ?? ((ALL_MEAL_GROUPS as string[]).includes(o) ? o : null))
+    .filter(Boolean);
+  return optionGroups.includes(group);
 }
 
-export function formatCategoryLabel(category: DishCategory): string {
-  return DISH_CATEGORY_LABELS[category] ?? category;
+export function dishMatchesCategoryFilter(
+  dish: { dish_category?: string | null; dish_type?: string | null; name: string },
+  filter?: string
+): boolean {
+  if (!filter) return true;
+  const dishType = resolveDishType(dish.dish_type, dish.name);
+  const group = effectiveMealGroup(dish);
+  if ((ALL_MEAL_GROUPS as string[]).includes(filter)) {
+    return group === filter;
+  }
+  if (LEGACY_TO_GROUP[filter]) {
+    const expectedType = LEGACY_TO_DISH_TYPE[filter];
+    return group === LEGACY_TO_GROUP[filter] && (!expectedType || dishType === expectedType);
+  }
+  if (CANONICAL_DISH_TYPES.has(filter)) {
+    return dishType === filter;
+  }
+  return dish.dish_category === filter || dishType === filter;
+}
+
+export function effectiveMealGroup(dish: {
+  dish_category?: string | null;
+  dish_type?: string | null;
+  name: string;
+}): MealGroup {
+  if (dish.dish_category && LEGACY_TO_GROUP[dish.dish_category]) {
+    return LEGACY_TO_GROUP[dish.dish_category];
+  }
+  if (
+    dish.dish_category &&
+    (ALL_MEAL_GROUPS as string[]).includes(dish.dish_category)
+  ) {
+    return dish.dish_category as MealGroup;
+  }
+  return resolveMealGroup(dish.dish_type, dish.name);
+}
+
+/** @alias effectiveMealGroup */
+export const effectiveDishCategory = effectiveMealGroup;
+
+export function isPlainRiceCoveredByTag(slot: DishSlot, includesRice: boolean): boolean {
+  const normalized = normalizeDishSlot(slot);
+  return normalized.category === "rice" && normalized.dish_type === "plain_rice" && includesRice;
+}
+
+/** @alias isPlainRiceCoveredByTag */
+export function isRiceStapleCoveredByTag(slot: DishSlot, includesRice: boolean): boolean {
+  const normalized = normalizeDishSlot(slot);
+  if (!includesRice || normalized.category !== "rice") return false;
+  return !normalized.dish_type || normalized.dish_type === "plain_rice";
+}
+
+export function formatDishTypeLabel(dishType: string): string {
+  return DISH_TYPE_LABELS[dishType] ?? dishType.replace(/_/g, " ");
+}
+
+export function formatCategoryLabel(category: MealGroup): string {
+  return MEAL_GROUP_LABELS[category] ?? category;
 }
 
 export function formatSlotLabel(slot: DishSlot): string {
   if (slot.dishName?.trim()) return slot.dishName.trim();
-  const categories = [slot.category, ...(slot.options ?? [])];
-  const unique = [...new Set(categories)];
-  return unique.map(formatCategoryLabel).join(" / ");
+  const normalized = normalizeDishSlot(slot);
+  if (normalized.dish_type) {
+    return formatDishTypeLabel(normalized.dish_type);
+  }
+  if (normalized.options?.length) {
+    return normalized.options.map(formatDishTypeLabel).join(" / ");
+  }
+  return formatCategoryLabel(normalized.category);
 }
 
 export function slotFromDishName(
@@ -159,9 +364,13 @@ export function slotFromDishName(
   dishCategory?: string | null,
   dishId?: number
 ): DishSlot {
-  const category = (dishCategory as DishCategory | undefined) ?? resolveDishCategory(dishType, name);
+  const canonicalType = resolveDishType(dishType, name);
+  const group = dishCategory
+    ? normalizeSlotCategory(dishCategory)
+    : mealGroupForDishType(canonicalType);
   return {
-    category,
+    category: group,
+    dish_type: canonicalType,
     count: 1,
     dishId,
     dishName: name.trim(),
@@ -179,19 +388,30 @@ export function formatReuseLabel(reuse: DishSlot["reuse"]): string | null {
 }
 
 export function normalizeTemplate(template: MealTemplate): MealTemplate & { meals: MealPlan } {
+  const remapPlan = (plan?: MealPlan): MealPlan | undefined => {
+    if (!plan) return plan;
+    const next: MealPlan = {};
+    for (const ms of ["breakfast", "lunch", "dinner"] as MealSlot[]) {
+      const slots = plan[ms];
+      if (slots?.length) next[ms] = slots.map(normalizeDishSlot);
+    }
+    return next;
+  };
+
   if (template.meals && Object.values(template.meals).some((s) => s && s.length > 0)) {
-    const meal_slots = templateMealSlots(template);
+    const meals = remapPlan(template.meals)!;
+    const meal_slots = templateMealSlots({ ...template, meals });
     return {
       ...template,
-      meals: template.meals,
+      meals,
       meal_slots,
       day_types: [],
-      slots: flattenMealPlan(template.meals),
+      slots: flattenMealPlan(meals),
     };
   }
 
   const meals: MealPlan = {};
-  const legacySlots = template.slots ?? [];
+  const legacySlots = (template.slots ?? []).map(normalizeDishSlot);
   const legacyMeals = template.meal_slots?.length ? template.meal_slots : ["lunch" as MealSlot];
   if (legacySlots.length > 0) {
     for (const ms of legacyMeals) {
@@ -326,9 +546,11 @@ export function templatePrimaryMealSlot(template: MealTemplate): MealSlot {
 export function templateHasRiceStaple(template: MealTemplate, mealSlot?: MealSlot): boolean {
   const normalized = normalizeTemplate(template);
   const check = (slots: DishSlot[]) =>
-    slots.some(
-      (s) => s.category === "rice_staple" || (s.options ?? []).includes("rice_staple")
-    );
+    slots.some((s) => {
+      const n = normalizeDishSlot(s);
+      if (n.category !== "rice") return false;
+      return !n.dish_type || n.dish_type === "plain_rice";
+    });
   if (mealSlot) return check(normalized.meals[mealSlot] ?? []);
   return check(flattenMealPlan(normalized.meals));
 }
@@ -374,13 +596,13 @@ export function createBlankMealPlan(): MealPlan {
 
 export const QUICK_DISH_PRESETS: Array<{ label: string; slot: DishSlot }> = [
   { label: "Tiffin", slot: { category: "tiffin", count: 1 } },
-  { label: "Chutney / Sambar", slot: { category: "chutney", count: 1, options: ["sambar"] } },
-  { label: "Veg Side", slot: { category: "side_poriyal", count: 1 } },
-  { label: "Protein", slot: { category: "protein", count: 1 } },
-  { label: "Mixed Rice", slot: { category: "mixed_rice", count: 1 } },
-  { label: "Rice", slot: { category: "rice_staple", count: 1 } },
-  { label: "Kulambu", slot: { category: "kulambu", count: 1 } },
-  { label: "Curry", slot: { category: "curry", count: 1 } },
+  { label: "Chutney", slot: { category: "chutney", count: 1 } },
+  { label: "Sambar", slot: { category: "gravy", dish_type: "sambar", count: 1 } },
+  { label: "Veg Side", slot: { category: "side", dish_type: "poriyal", count: 1 } },
+  { label: "Mixed Rice", slot: { category: "rice", dish_type: "mixed_rice", count: 1 } },
+  { label: "Rice", slot: { category: "rice", dish_type: "plain_rice", count: 1 } },
+  { label: "Kulambu", slot: { category: "gravy", dish_type: "kulambu", count: 1 } },
+  { label: "Curry", slot: { category: "gravy", dish_type: "curry", count: 1 } },
 ];
 
 export function createTemplateId(): string {
@@ -400,13 +622,13 @@ export const REGION_PRESET_TEMPLATES: MealTemplate[] = [
       breakfast: [
         { category: "tiffin", count: 1 },
         { category: "chutney", count: 1, options: ["sambar"] },
-        { category: "side_poriyal", count: 1, reuse: "all_meals" },
-        { category: "protein", count: 1, reuse: "all_meals", note: "egg preferred for kids" },
+        { category: "side", count: 1, reuse: "all_meals" },
+        { category: "side", count: 1, reuse: "all_meals", note: "egg or chicken side" },
       ],
       lunch: [
-        { category: "mixed_rice", count: 1 },
-        { category: "side_poriyal", count: 1, reuse: "breakfast" },
-        { category: "protein", count: 1, reuse: "breakfast" },
+        { category: "rice", dish_type: "mixed_rice", count: 1 },
+        { category: "side", count: 1, reuse: "breakfast" },
+        { category: "side", count: 1, reuse: "breakfast", note: "inherits morning side" },
       ],
     },
   },
@@ -415,8 +637,8 @@ export const REGION_PRESET_TEMPLATES: MealTemplate[] = [
     meal_slots: ["lunch"],
     day_types: ["any"],
     slots: [
-      { category: "kulambu", count: 1 },
-      { category: "side_poriyal", count: 2 },
+      { category: "gravy", dish_type: "kulambu", count: 1 },
+      { category: "side", count: 2 },
     ],
   },
   {
@@ -427,7 +649,7 @@ export const REGION_PRESET_TEMPLATES: MealTemplate[] = [
     slots: [
       { category: "tiffin", count: 1 },
       { category: "chutney", count: 1, options: ["sambar"] },
-      { category: "protein", count: 1, note: "egg preferred for kids" },
+      { category: "side", count: 1, note: "egg or chicken side" },
     ],
   },
   {
@@ -435,7 +657,7 @@ export const REGION_PRESET_TEMPLATES: MealTemplate[] = [
     name: "School Day Lunch",
     meal_slots: ["lunch"],
     day_types: ["school_day"],
-    slots: [{ category: "mixed_rice", count: 1, note: "inherits protein from morning batch" }],
+    slots: [{ category: "rice", dish_type: "mixed_rice", count: 1, note: "inherits sides from morning batch" }],
   },
   {
     id: "preset-holiday-breakfast",
@@ -444,8 +666,8 @@ export const REGION_PRESET_TEMPLATES: MealTemplate[] = [
     day_types: ["holiday"],
     slots: [
       { category: "tiffin", count: 1 },
-      { category: "side_poriyal", count: 1 },
-      { category: "protein", count: 1 },
+      { category: "side", count: 1 },
+      { category: "side", count: 1, note: "egg or chicken side" },
     ],
   },
   {
@@ -454,10 +676,10 @@ export const REGION_PRESET_TEMPLATES: MealTemplate[] = [
     meal_slots: ["lunch"],
     day_types: ["holiday"],
     slots: [
-      { category: "rice_staple", count: 1 },
-      { category: "kulambu", count: 1, options: ["curry"] },
-      { category: "side_poriyal", count: 1 },
-      { category: "protein", count: 1 },
+      { category: "rice", dish_type: "plain_rice", count: 1 },
+      { category: "gravy", dish_type: "kulambu", count: 1, options: ["curry"] },
+      { category: "side", count: 1 },
+      { category: "side", count: 1, note: "egg or chicken side" },
     ],
   },
   {
@@ -466,8 +688,8 @@ export const REGION_PRESET_TEMPLATES: MealTemplate[] = [
     meal_slots: ["lunch"],
     day_types: ["any"],
     slots: [
-      { category: "curry", count: 1 },
-      { category: "side_poriyal", count: 1 },
+      { category: "gravy", dish_type: "curry", count: 1 },
+      { category: "side", count: 1 },
     ],
   },
   {
@@ -476,8 +698,8 @@ export const REGION_PRESET_TEMPLATES: MealTemplate[] = [
     meal_slots: ["lunch", "dinner"],
     day_types: ["any"],
     slots: [
-      { category: "kulambu", count: 1, options: ["curry"] },
-      { category: "side_poriyal", count: 1 },
+      { category: "gravy", dish_type: "kulambu", count: 1, options: ["curry"] },
+      { category: "side", count: 1 },
     ],
   },
   {
@@ -486,8 +708,8 @@ export const REGION_PRESET_TEMPLATES: MealTemplate[] = [
     meal_slots: ["lunch", "dinner"],
     day_types: ["any"],
     slots: [
-      { category: "protein", count: 1 },
-      { category: "rice_staple", count: 1 },
+      { category: "side", count: 1, note: "egg or chicken side" },
+      { category: "rice", dish_type: "plain_rice", count: 1 },
     ],
     balance_target: { carb: 30, veg: 20, protein: 50 },
   },

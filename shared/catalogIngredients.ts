@@ -1,14 +1,19 @@
-import type { DishCategory, MealSlot, MealTemplate } from "./mealTemplates";
-import { getSlotsForMeal } from "./mealTemplates";
+import type { MealGroup, MealSlot, MealTemplate } from "./mealTemplates";
+import { getSlotsForMeal, normalizeDishSlot } from "./mealTemplates";
 
 const RICE_INGREDIENT = "rice";
 const STAPLE_ONLY_INGREDIENTS = new Set([RICE_INGREDIENT, "pasta"]);
 
 export function templateNeedsMixedRice(template: MealTemplate, mealSlot: MealSlot): boolean {
   const slots = getSlotsForMeal(template, mealSlot);
-  return slots.some(
-    (slot) => slot.category === "mixed_rice" || (slot.options ?? []).includes("mixed_rice")
-  );
+  return slots.some((slot) => {
+    const normalized = normalizeDishSlot(slot);
+    return (
+      (normalized.category === "rice" && normalized.dish_type === "mixed_rice") ||
+      slot.category === "mixed_rice" ||
+      (slot.options ?? []).includes("mixed_rice")
+    );
+  });
 }
 
 export function expandCatalogIngredients(
@@ -58,15 +63,12 @@ export function filterMixedRiceForIngredients<T extends { name: string }>(
   return matched.length > 0 ? matched : dishes;
 }
 
+import { dishMatchesCategoryFilter } from "./mealTemplates";
+
 export function filterDishesByCategory<T extends { dish_category?: string | null; dish_type?: string | null; name: string }>(
   dishes: T[],
-  category?: DishCategory
+  category?: MealGroup | string
 ): T[] {
   if (!category) return dishes;
-  return dishes.filter((dish) => {
-    const resolved =
-      dish.dish_category ??
-      (dish.name.toLowerCase().includes("rice") && category === "mixed_rice" ? "mixed_rice" : dish.dish_type);
-    return resolved === category;
-  });
+  return dishes.filter((dish) => dishMatchesCategoryFilter(dish, category));
 }

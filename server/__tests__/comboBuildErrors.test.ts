@@ -10,7 +10,7 @@ const schoolDayCombo: MealTemplate = {
       { category: "tiffin", count: 1 },
       { category: "chutney", count: 1, options: ["sambar"] },
     ],
-    lunch: [{ category: "mixed_rice", count: 1 }],
+    lunch: [{ category: "rice", dish_type: "mixed_rice", count: 1 }],
   },
 };
 

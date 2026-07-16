@@ -5,7 +5,7 @@ import {
   DaySettings,
   DEFAULT_DAY_SETTINGS,
   MealTemplate,
-  resolveDishCategory,
+  resolveMealGroup,
 } from "../../shared/mealTemplates";
 import type { FoodPlate } from "../../shared/foodPlates";
 
@@ -67,7 +67,7 @@ export function memoryInsertDish(dish: {
     youtube_video_id: dish.youtubeVideoId ?? null,
     dish_type: dish.dishType ?? null,
     dish_category:
-      dish.dishCategory ?? resolveDishCategory(dish.dishType, dish.name),
+      dish.dishCategory ?? resolveMealGroup(dish.dishType, dish.name),
     spice_level: dish.spiceLevel ?? null,
     main_ingredients: dish.mainIngredients ?? [],
     pairs_with: dish.pairsWith ?? ["Rice"],
