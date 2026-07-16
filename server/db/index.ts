@@ -3,6 +3,7 @@ export * from "./users";
 export * from "./globalCombos";
 export * from "./events";
 export * from "./templates";
+export * from "./foodPlates";
 export { getPool, query } from "./pool";
 export { buildIngredientSignature, normalizeIngredient } from "./ingredientSignature";
 export {

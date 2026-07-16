@@ -7,6 +7,7 @@ import {
   memorySaveTasteProfile,
 } from "./memoryStore";
 import type { DaySettings, MealTemplate } from "../../shared/mealTemplates";
+import type { FoodPlate } from "../../shared/foodPlates";
 
 export interface TasteProfile {
   liked_dish_types: Record<string, number>;
@@ -26,6 +27,7 @@ export interface UserProfileRow {
   taste_profile: TasteProfile | string;
   city_code: string | null;
   meal_templates?: MealTemplate[];
+  food_plates?: FoodPlate[];
   day_settings?: DaySettings;
 }
 

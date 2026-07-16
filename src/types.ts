@@ -55,6 +55,8 @@ export type {
   BalanceTarget,
 } from "../../shared/mealTemplates";
 
+export type { FoodPlate, FoodPlateSource } from "../../shared/foodPlates";
+
 export interface Meal {
   id: string;
   recipeName: string;

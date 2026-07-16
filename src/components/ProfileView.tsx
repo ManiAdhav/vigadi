@@ -2,7 +2,9 @@ import { Heart, Flame, Plus, Sparkles, BookOpen, Bookmark, Layers, Clock, Check,
 import { useState, useEffect, useCallback } from "react";
 import { Meal, MealTemplate } from "../types";
 import TemplateBuilder from "./TemplateBuilder";
+import FoodPlateBuilder from "./FoodPlateBuilder";
 import { formatTemplatePreview, normalizeTemplate, templateMealsLabel } from "../../shared/mealTemplates";
+import { FoodPlate, foodPlateSummary } from "../../shared/foodPlates";
 
 interface ProfileViewProps {
   onSelectMealById: (id: string) => void;
@@ -24,19 +26,17 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
   const [userLocation, setUserLocation] = useState(() => {
     return localStorage.getItem("vigadi_user_location") || "Tamil Nadu, Chennai";
   });
-  const [mealRules, setMealRules] = useState(() => {
-    return localStorage.getItem("vigadi_custom_rules") || "Tamil Nadu rules: 1 Kulambu, 2 Sides";
-  });
   const [carbPct, setCarbPct] = useState(50);
   const [proteinPct, setProteinPct] = useState(30);
   const [fatPct, setFatPct] = useState(20);
   const [isEditingLocation, setIsEditingLocation] = useState(false);
   const [locationInput, setLocationInput] = useState(userLocation);
-  const [isEditingRules, setIsEditingRules] = useState(false);
-  const [customRulesInput, setCustomRulesInput] = useState(mealRules);
   const [templates, setTemplates] = useState<MealTemplate[]>([]);
+  const [foodPlates, setFoodPlates] = useState<FoodPlate[]>([]);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [templateToEdit, setTemplateToEdit] = useState<MealTemplate | null>(null);
+  const [showFoodPlateManager, setShowFoodPlateManager] = useState(false);
+  const [plateToEdit, setPlateToEdit] = useState<FoodPlate | null>(null);
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -49,9 +49,21 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
     }
   }, []);
 
+  const loadFoodPlates = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/food-plates/${getUserId()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setFoodPlates(data.plates || []);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     loadTemplates();
-  }, [loadTemplates]);
+    loadFoodPlates();
+  }, [loadTemplates, loadFoodPlates]);
 
   const saveTemplate = async (template: MealTemplate): Promise<{ ok: boolean; error?: string }> => {
     try {
@@ -91,6 +103,49 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
       const data = await res.json();
       setTemplates(data.templates || []);
       await loadTemplates();
+      return true;
+    }
+    return false;
+  };
+
+  const saveFoodPlate = async (plate: FoodPlate): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`/api/food-plates/${getUserId()}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plate }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { ok: false, error: err.error || `Save failed (${res.status})` };
+      }
+      const data = await res.json();
+      setFoodPlates(data.plates || []);
+      await loadFoodPlates();
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Network error — check your connection." };
+    }
+  };
+
+  const duplicateFoodPlate = async (plateId: string) => {
+    const res = await fetch(`/api/food-plates/${getUserId()}/${plateId}/duplicate`, {
+      method: "POST",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setFoodPlates(data.plates || []);
+    }
+  };
+
+  const deleteFoodPlate = async (plateId: string) => {
+    const res = await fetch(`/api/food-plates/${getUserId()}/${plateId}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setFoodPlates(data.plates || []);
+      await loadFoodPlates();
       return true;
     }
     return false;
@@ -387,94 +442,66 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
           </p>
         </div>
 
-        {/* Regional Guidelines & Meal Cooking Rules */}
+        {/* My Food Plan */}
         <div className="space-y-1.5 pt-4 border-t border-matcha/20">
-          <label className="text-[10px] font-mono uppercase tracking-wider text-espresso/50 font-bold block">
-            Regional Guidelines & Cooking Rules
-          </label>
-          
-          {isEditingRules ? (
-            <div className="space-y-2">
-              <textarea
-                value={customRulesInput}
-                onChange={(e) => setCustomRulesInput(e.target.value)}
-                className="w-full bg-white border border-matcha/40 p-2.5 rounded-xl text-xs text-espresso font-medium focus:ring-1 focus:ring-[#2E9D70]/45 focus:outline-hidden leading-relaxed h-16 resize-none"
-                placeholder="Describe rules, e.g. 1 hot curry stew, 2 baked sides, no dairy..."
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const rule = customRulesInput.trim() || "Tamil Nadu rules: 1 Kulambu, 2 Sides";
-                    setMealRules(rule);
-                    localStorage.setItem("vigadi_custom_rules", rule);
-                    setIsEditingRules(false);
-                  }}
-                  className="bg-[#2E9D70] text-white hover:bg-[#208359] text-xs px-3 py-1.5 rounded-lg font-bold cursor-pointer"
-                >
-                  Save Rules
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustomRulesInput(mealRules);
-                    setIsEditingRules(false);
-                  }}
-                  className="bg-zinc-200 text-espresso text-xs px-3 py-1.5 rounded-lg font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-mono uppercase tracking-wider text-espresso/50 font-bold block">
+              My Food Plan
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setPlateToEdit(null);
+                setShowFoodPlateManager(true);
+              }}
+              className="text-[10px] font-mono uppercase text-[#2E9D70] font-bold cursor-pointer"
+            >
+              Manage
+            </button>
+          </div>
+
+          {foodPlates.length === 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                setPlateToEdit(null);
+                setShowFoodPlateManager(true);
+              }}
+              className="w-full bg-[#F1F3ED] border border-dashed border-matcha/30 p-3 rounded-xl text-[11px] text-espresso/60 font-medium cursor-pointer hover:border-[#2E9D70]/40 hover:text-espresso/80 transition-colors"
+            >
+              + Create your first food plate (e.g. Balanced Lunch every day)
+            </button>
           ) : (
             <div className="space-y-2">
-              <div className="bg-[#F1F3ED] border border-matcha/10 p-2.5 rounded-xl flex items-start justify-between gap-2">
-                <div className="text-[11px] font-mono font-medium text-espresso/80 leading-relaxed">
-                  "{mealRules}"
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustomRulesInput(mealRules);
-                    setIsEditingRules(true);
-                  }}
-                  className="text-[10px] uppercase font-mono font-bold text-[#2E9D70] hover:underline cursor-pointer shrink-0"
+              {foodPlates.map((plate) => (
+                <div
+                  key={plate.id}
+                  className="bg-[#F1F3ED] border border-matcha/10 p-2.5 rounded-xl flex items-start justify-between gap-2"
                 >
-                  Edit
-                </button>
-              </div>
-              
-              {/* Quick Select Buttons */}
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {[
-                  { name: "Tamil Nadu Customs", rule: "Tamil Nadu rules: 1 Kulambu, 2 Sides" },
-                  { name: "Kerala Customs", rule: "Kerala style: 1 Thoran, 1 Curry" },
-                  { name: "Classic Comfort", rule: "Classic homestyle: 1 Gravy, 1 Dry fry" },
-                  { name: "Samoa Tiffin", rule: "High protein: 1 main source, 1 boiled starch, minimal oil" }
-                ].map((preset) => {
-                  const isActive = mealRules === preset.rule;
-                  return (
-                    <button
-                      key={preset.name}
-                      type="button"
-                      onClick={() => {
-                        setMealRules(preset.rule);
-                        setCustomRulesInput(preset.rule);
-                        localStorage.setItem("vigadi_custom_rules", preset.rule);
-                      }}
-                      className={`px-2 py-1 rounded-md text-[9.5px] font-semibold border transition-all cursor-pointer ${
-                        isActive
-                          ? "bg-[#2E9D70] border-[#2E9D70] text-white shadow-xs"
-                          : "bg-[#F1F3ED] border-matcha/20 text-espresso/70 hover:bg-matcha/10"
-                      }`}
-                    >
-                      {preset.name}
-                    </button>
-                  );
-                })}
-              </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-espresso truncate">{plate.name}</p>
+                    <p className="text-[10px] text-espresso/50 font-mono mt-0.5">
+                      {foodPlateSummary(plate)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlateToEdit(plate);
+                      setShowFoodPlateManager(true);
+                    }}
+                    className="text-[10px] uppercase font-mono font-bold text-[#2E9D70] hover:underline cursor-pointer shrink-0"
+                  >
+                    Edit
+                  </button>
+                </div>
+              ))}
             </div>
           )}
+
+          <p className="text-[10px] text-espresso/50 leading-relaxed font-mono">
+            * Food plates define what you eat per meal and day. The kitchen auto-builds combos from your active plate.
+          </p>
         </div>
       </div>
 
@@ -588,6 +615,21 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
             setShowTemplateManager(false);
             setTemplateToEdit(null);
             loadTemplates();
+          }}
+        />
+      )}
+
+      {showFoodPlateManager && (
+        <FoodPlateBuilder
+          plates={foodPlates}
+          editing={plateToEdit}
+          onSave={saveFoodPlate}
+          onDuplicate={duplicateFoodPlate}
+          onDelete={deleteFoodPlate}
+          onClose={() => {
+            setShowFoodPlateManager(false);
+            setPlateToEdit(null);
+            loadFoodPlates();
           }}
         />
       )}

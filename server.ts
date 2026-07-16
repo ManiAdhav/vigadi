@@ -24,6 +24,10 @@ import {
   duplicateMealTemplate,
   getDaySettings,
   saveDaySettings,
+  getFoodPlates,
+  upsertFoodPlate,
+  deleteFoodPlate,
+  duplicateFoodPlate,
 } from "./server/db";
 import {
   formatTemplatePreview,
@@ -38,6 +42,13 @@ import {
   uiSlotFromMealSlot,
 } from "./shared/mealTemplates";
 import type { DishCategory } from "./shared/mealTemplates";
+import {
+  foodPlateToRulesDescription,
+  foodPlateToTemplate,
+  resolveActiveFoodPlate,
+  prepareFoodPlateForSave,
+} from "./shared/foodPlates";
+import type { FoodPlate } from "./shared/foodPlates";
 import { discoverAndStoreIngredients } from "./server/discovery";
 import { buildCombosForMealSlots } from "./server/globalComboService";
 import { describeComboBuildFailure } from "./server/comboBuildErrors";
@@ -875,8 +886,13 @@ app.post("/api/combos/build", async (req, res) => {
     (category || uiSlotFromMealSlot(defaultSlot)) as "Breakfast" | "Lunch" | "Dinner"
   );
 
-  if (!activeTemplate) {
-    activeTemplate = pickAutoTemplate(templates, requestedSlot);
+  const foodPlates = await getFoodPlates(uid);
+  let activeFoodPlate: FoodPlate | undefined;
+  if (!activeTemplate && !templateId) {
+    activeFoodPlate = resolveActiveFoodPlate(foodPlates, requestedSlot);
+    if (activeFoodPlate) {
+      activeTemplate = foodPlateToTemplate(activeFoodPlate);
+    }
   }
 
   const mealSlot =
@@ -888,9 +904,11 @@ app.post("/api/combos/build", async (req, res) => {
   const categoryLabel = uiSlotFromMealSlot(mealSlot);
   const hasRice = !!includesRice;
 
-  const activeRules = activeTemplate
-    ? `${activeTemplate.name}: ${formatTemplatePreview(activeTemplate)}`
-    : rules || "Tamil Nadu rules: 1 Kulambu, 2 Sides";
+  const activeRules = activeFoodPlate
+    ? foodPlateToRulesDescription(activeFoodPlate)
+    : activeTemplate
+      ? `${activeTemplate.name}: ${formatTemplatePreview(activeTemplate)}`
+      : rules || "Tamil Nadu rules: 1 Kulambu, 2 Sides";
   await updateUserComboRules(uid, activeRules);
 
   try {
@@ -953,6 +971,7 @@ app.post("/api/combos/build", async (req, res) => {
       meals,
       sessionId,
       template: activeTemplate,
+      foodPlate: activeFoodPlate,
       category: categoryLabel,
       generateAllTemplateMeals: buildForAllMeals,
       combosByMeal,
@@ -1064,6 +1083,61 @@ app.post("/api/templates/:userId/:templateId/duplicate", async (req, res) => {
   const uid = req.params.userId || "default-user";
   const templates = await duplicateMealTemplate(uid, req.params.templateId);
   res.json({ templates });
+});
+
+// --- Food plates (personal meal plan) ---
+app.get("/api/food-plates/:userId", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  await ensureUserProfile(uid, "Guest");
+  const plates = await getFoodPlates(uid);
+  res.json({ plates });
+});
+
+app.get("/api/food-plates/:userId/match", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  await ensureUserProfile(uid, "Guest");
+  const mealSlot = (req.query.mealSlot as string) || "lunch";
+  const slot = mealSlot.toLowerCase() as "breakfast" | "lunch" | "dinner";
+  const dateStr = req.query.date as string | undefined;
+  const date = dateStr ? new Date(dateStr) : new Date();
+  const plates = await getFoodPlates(uid);
+  const active = resolveActiveFoodPlate(plates, slot, date);
+  res.json({ plate: active ?? null, plates });
+});
+
+app.post("/api/food-plates/:userId", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  const { plate } = req.body;
+  if (!plate?.name) {
+    return res.status(400).json({ error: "Food plate name is required." });
+  }
+  const prepared = prepareFoodPlateForSave(plate);
+  if (prepared.slots.length === 0) {
+    return res.status(400).json({ error: "Add at least one dish to the food plate." });
+  }
+  if (prepared.weekdays.length === 0) {
+    return res.status(400).json({ error: "Select at least one day for this food plate." });
+  }
+  try {
+    await ensureUserProfile(uid, "Guest");
+    const plates = await upsertFoodPlate(uid, prepared);
+    res.json({ plates });
+  } catch (error: any) {
+    console.error("Food plate save failed:", error);
+    res.status(500).json({ error: error.message || "Failed to save food plate." });
+  }
+});
+
+app.delete("/api/food-plates/:userId/:plateId", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  const plates = await deleteFoodPlate(uid, req.params.plateId);
+  res.json({ plates });
+});
+
+app.post("/api/food-plates/:userId/:plateId/duplicate", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  const plates = await duplicateFoodPlate(uid, req.params.plateId);
+  res.json({ plates });
 });
 
 app.put("/api/day-settings/:userId", async (req, res) => {
