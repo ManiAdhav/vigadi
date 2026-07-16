@@ -262,8 +262,10 @@ export async function searchDishes(
       `SELECT d.*, i.name as ingredient_name
        FROM dishes d
        JOIN ingredients i ON d.ingredient_id = i.id
-       WHERE d.name ILIKE $1
-       ORDER BY CASE WHEN d.name ILIKE $2 THEN 0 ELSE 1 END, d.name
+       WHERE d.name ILIKE $1 OR i.name ILIKE $1 OR d.dish_type ILIKE $1
+       ORDER BY
+         CASE WHEN d.name ILIKE $2 THEN 0 WHEN i.name ILIKE $2 THEN 1 ELSE 2 END,
+         d.name
        LIMIT $3`,
       [pattern, prefix, fetchLimit]
     );

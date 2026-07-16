@@ -594,16 +594,60 @@ export function createBlankMealPlan(): MealPlan {
   return { breakfast: [], lunch: [], dinner: [] };
 }
 
-export const QUICK_DISH_PRESETS: Array<{ label: string; slot: DishSlot }> = [
-  { label: "Tiffin", slot: { category: "tiffin", count: 1 } },
-  { label: "Chutney", slot: { category: "chutney", count: 1 } },
-  { label: "Sambar", slot: { category: "gravy", dish_type: "sambar", count: 1 } },
-  { label: "Veg Side", slot: { category: "side", dish_type: "poriyal", count: 1 } },
-  { label: "Mixed Rice", slot: { category: "rice", dish_type: "mixed_rice", count: 1 } },
-  { label: "Rice", slot: { category: "rice", dish_type: "plain_rice", count: 1 } },
-  { label: "Kulambu", slot: { category: "gravy", dish_type: "kulambu", count: 1 } },
-  { label: "Curry", slot: { category: "gravy", dish_type: "curry", count: 1 } },
+export function formatDishSearchSubtitle(dish: {
+  name: string;
+  dishType?: string | null;
+  dishCategory?: string | null;
+  ingredientName?: string | null;
+}): string {
+  const group = formatCategoryLabel(
+    (dish.dishCategory as MealGroup | undefined) ?? resolveMealGroup(dish.dishType, dish.name)
+  );
+  const type = dish.dishType ? formatDishTypeLabel(resolveDishType(dish.dishType, dish.name)) : null;
+  return [group, type, dish.ingredientName].filter(Boolean).join(" · ");
+}
+
+export interface MealGroupSlotPreset {
+  group: MealGroup;
+  dishTypes: Array<{ label: string; slot: DishSlot }>;
+}
+
+/** TN taxonomy picker: meal group → dish type slots */
+export const MEAL_GROUP_SLOT_PRESETS: MealGroupSlotPreset[] = [
+  {
+    group: "tiffin",
+    dishTypes: [{ label: "Tiffin", slot: { category: "tiffin", count: 1 } }],
+  },
+  {
+    group: "chutney",
+    dishTypes: [{ label: "Chutney", slot: { category: "chutney", count: 1 } }],
+  },
+  {
+    group: "rice",
+    dishTypes: [
+      { label: "Plain Rice", slot: { category: "rice", dish_type: "plain_rice", count: 1 } },
+      { label: "Mixed Rice", slot: { category: "rice", dish_type: "mixed_rice", count: 1 } },
+    ],
+  },
+  {
+    group: "gravy",
+    dishTypes: [
+      { label: "Kulambu", slot: { category: "gravy", dish_type: "kulambu", count: 1 } },
+      { label: "Sambar", slot: { category: "gravy", dish_type: "sambar", count: 1 } },
+      { label: "Curry", slot: { category: "gravy", dish_type: "curry", count: 1 } },
+    ],
+  },
+  {
+    group: "side",
+    dishTypes: [
+      { label: "Poriyal", slot: { category: "side", dish_type: "poriyal", count: 1 } },
+      { label: "Fry", slot: { category: "side", dish_type: "fry", count: 1 } },
+    ],
+  },
 ];
+
+export const QUICK_DISH_PRESETS: Array<{ label: string; slot: DishSlot }> =
+  MEAL_GROUP_SLOT_PRESETS.flatMap(({ dishTypes }) => dishTypes);
 
 export function createTemplateId(): string {
   return `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;

@@ -117,7 +117,12 @@ export function memorySearchDishes(queryText: string, limit = 10): DishRow[] {
   const q = queryText.toLowerCase().trim();
   if (!q) return [];
   return dishes
-    .filter((d) => d.name.toLowerCase().includes(q))
+    .filter(
+      (d) =>
+        d.name.toLowerCase().includes(q) ||
+        d.ingredient_name?.toLowerCase().includes(q) ||
+        d.dish_type?.toLowerCase().includes(q)
+    )
     .sort((a, b) => {
       const aStarts = a.name.toLowerCase().startsWith(q);
       const bStarts = b.name.toLowerCase().startsWith(q);

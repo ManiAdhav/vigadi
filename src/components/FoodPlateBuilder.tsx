@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import DishSearchInput from "./DishSearchInput";
+import DishSlotPicker from "./DishSlotPicker";
 import { X, Plus, Copy, Trash2, Sun, UtensilsCrossed, Moon } from "lucide-react";
 import {
   createFoodPlateId,
@@ -13,7 +13,6 @@ import {
   DishSlot,
   formatSlotLabel,
   MealSlot,
-  QUICK_DISH_PRESETS,
 } from "../../shared/mealTemplates";
 
 interface FoodPlateBuilderProps {
@@ -310,41 +309,7 @@ export default function FoodPlateBuilder({
 
           <div className="px-4 py-3 border-t border-matcha/10">
             {showAddPicker ? (
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <label className="text-[9px] font-mono uppercase text-espresso/40 font-bold">
-                    Search or type dish name
-                  </label>
-                  <DishSearchInput
-                    onSelect={addSlot}
-                    placeholder="Search dishes…"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[9px] font-mono uppercase text-espresso/40 font-bold">
-                    Or pick a category
-                  </label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {QUICK_DISH_PRESETS.map(({ label, slot }) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => addSlot(slot)}
-                        className="px-2.5 py-1.5 rounded-lg bg-[#F1F3ED] text-[11px] font-bold text-espresso/80 hover:bg-matcha/30 cursor-pointer"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAddPicker(false)}
-                  className="text-[10px] font-mono text-espresso/50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-              </div>
+              <DishSlotPicker onSelect={addSlot} onCancel={() => setShowAddPicker(false)} />
             ) : (
               <button
                 type="button"

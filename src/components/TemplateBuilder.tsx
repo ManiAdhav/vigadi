@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import DishSearchInput from "./DishSearchInput";
+import DishSlotPicker from "./DishSlotPicker";
 import { X, Plus, Copy, Trash2, Sun, UtensilsCrossed, Moon, RefreshCw } from "lucide-react";
 import {
   createBlankMealPlan,
@@ -14,7 +14,6 @@ import {
   MealTemplate,
   normalizeTemplate,
   prepareTemplateForSave,
-  QUICK_DISH_PRESETS,
   reuseOptionsForMeal,
   templateMealsLabel,
 } from "../../shared/mealTemplates";
@@ -317,42 +316,14 @@ export default function TemplateBuilder({
 
                 <div className="px-4 py-3 border-t border-matcha/10">
                   {addPickerFor === id ? (
-                    <div className="space-y-3">
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-mono uppercase text-espresso/40 font-bold">
-                          Search or type dish name
-                        </label>
-                        <DishSearchInput
-                          onSelect={(slot) => addDish(id, slot)}
-                          category={id === "lunch" ? "mixed_rice" : undefined}
-                          placeholder={id === "lunch" ? "Search mixed rice…" : "Search dishes…"}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-mono uppercase text-espresso/40 font-bold">
-                          Or pick a category
-                        </label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {QUICK_DISH_PRESETS.map(({ label, slot }) => (
-                            <button
-                              key={label}
-                              type="button"
-                              onClick={() => addDish(id, slot)}
-                              className="px-2.5 py-1.5 rounded-lg bg-[#F1F3ED] text-[11px] font-bold text-espresso/80 hover:bg-matcha/30 cursor-pointer"
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setAddPickerFor(null)}
-                        className="text-[10px] font-mono text-espresso/50 cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                    <DishSlotPicker
+                      onSelect={(slot) => addDish(id, slot)}
+                      onCancel={() => setAddPickerFor(null)}
+                      searchCategory={id === "lunch" ? "mixed_rice" : undefined}
+                      searchPlaceholder={
+                        id === "lunch" ? "Search mixed rice dishes…" : "Search by dish, ingredient, or type…"
+                      }
+                    />
                   ) : (
                     <button
                       type="button"

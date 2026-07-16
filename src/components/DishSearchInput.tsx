@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
-import { resolveMealGroup, slotFromDishName } from "../../shared/mealTemplates";
+import { formatDishSearchSubtitle, slotFromDishName } from "../../shared/mealTemplates";
 
 export interface DishSearchResult {
   id: number;
@@ -49,7 +49,9 @@ export default function DishSearchInput({
         return;
       }
       const data = await res.json();
-      const dishes: DishSearchResult[] = data.dishes ?? [];
+      const dishes: DishSearchResult[] = (data.dishes ?? []).filter(
+        (d: DishSearchResult) => d.name?.trim()
+      );
       setResults(dishes);
       setOpen(dishes.length > 0);
       setHighlight(0);
@@ -157,11 +159,11 @@ export default function DishSearchInput({
                   idx === highlight ? "bg-sage/20" : "hover:bg-cream"
                 }`}
               >
-                <span className="text-xs font-semibold text-espresso block">{item.name}</span>
-                <span className="text-[10px] text-espresso/50 font-mono">
-                  {[item.ingredientName, item.dishCategory ?? resolveMealGroup(item.dishType, item.name)]
-                    .filter(Boolean)
-                    .join(" · ")}
+                <span className="text-xs font-semibold text-espresso block truncate">
+                  {item.name}
+                </span>
+                <span className="text-[10px] text-espresso/50 font-mono truncate block">
+                  {formatDishSearchSubtitle(item)}
                 </span>
               </button>
             </li>
@@ -171,7 +173,8 @@ export default function DishSearchInput({
 
       {query.trim() && !loading && results.length === 0 && (
         <p className="mt-1.5 text-[10px] text-espresso/50">
-          Press Enter to add &ldquo;{query.trim()}&rdquo; as a dish slot
+          No catalog match — press Enter to add &ldquo;{query.trim()}&rdquo; as a custom dish, or pick a
+          type below
         </p>
       )}
     </div>
