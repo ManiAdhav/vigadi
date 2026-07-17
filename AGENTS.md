@@ -2,6 +2,12 @@
 
 This repo vendors the [Superpowers](https://github.com/obra/superpowers) plugin so Cloud Agents get the same skills and workflows as local Cursor.
 
+## Project status & git policy
+
+- **Vigadi is a demo version with no real users yet.**
+- Because there are no users, the agent may commit and **push directly to `main` without asking for permission**.
+- This overrides the default "never push unless explicitly asked" behavior for this repo.
+
 ## Superpowers in this repo
 
 | Asset | Location |
