@@ -649,6 +649,29 @@ export const MEAL_GROUP_SLOT_PRESETS: MealGroupSlotPreset[] = [
 export const QUICK_DISH_PRESETS: Array<{ label: string; slot: DishSlot }> =
   MEAL_GROUP_SLOT_PRESETS.flatMap(({ dishTypes }) => dishTypes);
 
+export interface DishPill {
+  label: string;
+  slot: DishSlot;
+}
+
+/**
+ * Flat picker pills: dish GROUP (any dish in the group) + dish CATEGORY.
+ * Excludes individual dishes (e.g. Sambar is a dish, not a category).
+ */
+export const DISH_PICKER_PILLS: DishPill[] = [
+  { label: "Tiffin", slot: { category: "tiffin", count: 1 } },
+  { label: "Chutney", slot: { category: "chutney", count: 1 } },
+  { label: "Rice", slot: { category: "rice", count: 1 } },
+  { label: "Plain Rice", slot: { category: "rice", dish_type: "plain_rice", count: 1 } },
+  { label: "Mixed Rice", slot: { category: "rice", dish_type: "mixed_rice", count: 1 } },
+  { label: "Gravy", slot: { category: "gravy", count: 1 } },
+  { label: "Kulambu", slot: { category: "gravy", dish_type: "kulambu", count: 1 } },
+  { label: "Curry", slot: { category: "gravy", dish_type: "curry", count: 1 } },
+  { label: "Side", slot: { category: "side", count: 1 } },
+  { label: "Poriyal", slot: { category: "side", dish_type: "poriyal", count: 1 } },
+  { label: "Fry", slot: { category: "side", dish_type: "fry", count: 1 } },
+];
+
 export function createTemplateId(): string {
   return `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
