@@ -4,6 +4,7 @@ import pg from "pg";
 import dotenv from "dotenv";
 import { extractYouTubeVideoId } from "../server/jsonUtils";
 import { resolveDishCategory } from "../shared/mealTemplates";
+import { isAlwaysSecondary } from "../shared/ingredientClassification";
 import {
   type IngredientDishBlock,
   resolveIngredientId,
@@ -34,6 +35,14 @@ async function syncIngredientBlock(
   options: SyncOptions
 ): Promise<{ inserted: number; updated: number; removed: number; staleRemoved: number; missing: boolean }> {
   const catalogId = resolveIngredientId(block.ingredientId) ?? block.ingredientId;
+
+  if (isAlwaysSecondary(block.ingredientCanonical) || isAlwaysSecondary(catalogId)) {
+    console.warn(
+      `  ⏭ Skipping ${block.ingredientCanonical} (${catalogId}) — always-secondary ingredient; dishes must be keyed to a primary ingredient`
+    );
+    return { inserted: 0, updated: 0, removed: 0, staleRemoved: 0, missing: false };
+  }
+
   const ingredient = await client.query<{ id: number; name: string }>(
     `SELECT id, name FROM ingredients WHERE catalog_slug = $1`,
     [catalogId]

@@ -35,6 +35,11 @@ describe("expandCatalogIngredients", () => {
     const result = expandCatalogIngredients(["Carrot", "Tomato"]);
     expect(result).toEqual(["Carrot", "Tomato"]);
   });
+
+  it("strips always-secondary ingredients so combos never gate on them", () => {
+    const result = expandCatalogIngredients(["Chicken", "Tamarind", "Oil", "Salt"]);
+    expect(result).toEqual(["Chicken"]);
+  });
 });
 
 describe("templateNeedsMixedRice", () => {
@@ -65,5 +70,14 @@ describe("filterMixedRiceForIngredients", () => {
   it("returns all dishes when no vegetable match exists", () => {
     const result = filterMixedRiceForIngredients(mixedRiceDishes, ["Rice"]);
     expect(result).toEqual(mixedRiceDishes);
+  });
+
+  it("ignores always-secondary needles like tamarind", () => {
+    const dishes = [
+      { name: "Puliyodarai (Tamarind Rice)" },
+      { name: "Carrot Rice (Carrot Sadam)" },
+    ];
+    const result = filterMixedRiceForIngredients(dishes, ["Tamarind", "Rice"]);
+    expect(result).toEqual(dishes);
   });
 });

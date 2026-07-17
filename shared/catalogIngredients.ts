@@ -1,5 +1,6 @@
 import type { MealGroup, MealSlot, MealTemplate } from "./mealTemplates";
 import { getSlotsForMeal, normalizeDishSlot } from "./mealTemplates";
+import { isAlwaysSecondary } from "./ingredientClassification";
 
 const RICE_INGREDIENT = "rice";
 const STAPLE_ONLY_INGREDIENTS = new Set([RICE_INGREDIENT, "pasta"]);
@@ -24,7 +25,9 @@ export function expandCatalogIngredients(
     mealSlot?: MealSlot;
   }
 ): string[] {
-  const expanded = [...ingredients];
+  // Always-secondary ingredients (tamarind, oil, salt, water) never gate a
+  // combo — dishes are matched on their primary ingredient only.
+  const expanded = ingredients.filter((ing) => !isAlwaysSecondary(ing));
   const hasRiceTag = expanded.some((ing) => ing.toLowerCase() === RICE_INGREDIENT);
   const needsRiceCatalog =
     !!options?.includesRice ||
@@ -52,7 +55,12 @@ export function filterMixedRiceForIngredients<T extends { name: string }>(
 ): T[] {
   const needles = ingredients
     .map((ing) => ing.trim())
-    .filter((ing) => ing && !STAPLE_ONLY_INGREDIENTS.has(ing.toLowerCase()));
+    .filter(
+      (ing) =>
+        ing &&
+        !STAPLE_ONLY_INGREDIENTS.has(ing.toLowerCase()) &&
+        !isAlwaysSecondary(ing)
+    );
 
   if (needles.length === 0) return dishes;
 
