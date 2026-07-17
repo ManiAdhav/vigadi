@@ -88,15 +88,25 @@ function suggestForSlot(
   return `Add ${sample} to unlock ${label} dishes`;
 }
 
-function allIngredientHints(slot: DishSlot): string {
+/**
+ * Suggests PRIMARY ingredients that unlock a group's dishes.
+ * Never suggests pantry/secondary staples (oil, tomato, onion, ginger, garlic,
+ * tamarind) since users always have those and dishes are gated on their
+ * primary ingredient, not pantry items.
+ */
+export function unlockIngredientHint(category: MealGroup): string {
   const hints: Record<MealGroup, string> = {
-    tiffin: "idli rice or rava",
-    gravy: "tomato or tamarind",
-    rice: "lemon or tamarind",
-    side: "potato or beans",
-    chutney: "coconut",
+    tiffin: "rava or idli batter",
+    gravy: "a vegetable, paneer, chicken or fish",
+    rice: "a vegetable like carrot or beans",
+    side: "a vegetable like potato or beans",
+    chutney: "coconut or a vegetable",
   };
-  return hints[slot.category] ?? "matching ingredients";
+  return hints[category] ?? "a primary ingredient";
+}
+
+function allIngredientHints(slot: DishSlot): string {
+  return unlockIngredientHint(slot.category);
 }
 
 function pickForSlot(

@@ -6,6 +6,27 @@ import {
   normalizeSlotCategory,
   slotMatchesDish,
 } from "../../shared/mealTemplates";
+import { unlockIngredientHint } from "../mealTemplateBuilder";
+
+describe("unlockIngredientHint", () => {
+  const secondary = ["oil", "tomato", "onion", "ginger", "garlic", "tamarind", "lemon"];
+
+  it("never suggests pantry/secondary ingredients", () => {
+    for (const category of ["tiffin", "gravy", "rice", "side", "chutney"] as const) {
+      const hint = unlockIngredientHint(category).toLowerCase();
+      for (const item of secondary) {
+        expect(hint).not.toContain(item);
+      }
+    }
+  });
+
+  it("suggests primary ingredients for gravy (curry) dishes", () => {
+    const hint = unlockIngredientHint("gravy").toLowerCase();
+    expect(
+      ["vegetable", "paneer", "chicken", "fish"].some((p) => hint.includes(p))
+    ).toBe(true);
+  });
+});
 
 describe("normalizeSlotCategory", () => {
   it("maps legacy protein slots to side", () => {
