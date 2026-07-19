@@ -44,4 +44,14 @@ export async function runMigrations(): Promise<void> {
     await query(`INSERT INTO schema_migrations (id) VALUES ($1)`, ["004_food_plates"]);
     console.log("Migration 004 applied.");
   }
+
+  for (const id of ["005_meal_groups", "006_dish_catalog_corrections", "007_dish_catalog_schema"]) {
+    if (!appliedIds.has(id)) {
+      const sqlPath = path.join(process.cwd(), `migrations/${id}.sql`);
+      const sql = fs.readFileSync(sqlPath, "utf8");
+      await query(sql);
+      await query(`INSERT INTO schema_migrations (id) VALUES ($1)`, [id]);
+      console.log(`Migration ${id} applied.`);
+    }
+  }
 }

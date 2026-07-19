@@ -1,8 +1,8 @@
 export type MealSlot = "breakfast" | "lunch" | "dinner";
 export type DayType = "school_day" | "holiday" | "any" | string;
 
-/** Meal group — what role a dish plays on the plate (maps to dishes.dish_category). */
-export type MealGroup = "rice" | "gravy" | "side" | "chutney" | "tiffin";
+/** Meal group — template slot role (maps to Excel dish_group via SLOT_TO_DISH_GROUPS). */
+export type MealGroup = "rice" | "gravy" | "side" | "chutney" | "tiffin" | "snack";
 
 /** @alias MealGroup */
 export type DishCategory = MealGroup;
@@ -57,12 +57,13 @@ export const MEAL_GROUP_LABELS: Record<MealGroup, string> = {
   side: "Side",
   chutney: "Chutney",
   tiffin: "Tiffin",
+  snack: "Snack",
 };
 
 /** @alias MEAL_GROUP_LABELS */
 export const DISH_CATEGORY_LABELS = MEAL_GROUP_LABELS;
 
-export const ALL_MEAL_GROUPS: MealGroup[] = ["rice", "gravy", "side", "chutney", "tiffin"];
+export const ALL_MEAL_GROUPS: MealGroup[] = ["rice", "gravy", "side", "chutney", "tiffin", "snack"];
 
 /** @alias ALL_MEAL_GROUPS */
 export const ALL_DISH_CATEGORIES = ALL_MEAL_GROUPS;
@@ -88,6 +89,104 @@ export const DISH_TYPE_LABELS: Record<string, string> = {
   pongal: "Pongal",
   tiffin: "Tiffin",
 };
+
+/** Case-insensitive label compare for Excel dish_group / dish_category values. */
+export function normalizeCatalogLabel(value: string | null | undefined): string {
+  return (value ?? "").toLowerCase().trim().replace(/_/g, " ");
+}
+
+/** Template slot category → Excel dish_group values (case-insensitive). */
+export const SLOT_TO_DISH_GROUPS: Record<MealGroup, string[]> = {
+  rice: ["rice"],
+  gravy: ["gravy", "curry"],
+  side: ["side"],
+  chutney: ["chutney"],
+  tiffin: ["tiffin"],
+  snack: ["snack"],
+};
+
+/** Template slot dish_type → Excel dish_category / english_alias labels. */
+const SLOT_DISH_TYPE_LABELS: Record<string, string[]> = {
+  mixed_rice: ["mixed rice"],
+  plain_rice: ["plain rice"],
+  kulambu: ["kuzhambu"],
+  curry: ["curry", "gravy"],
+  sambar: ["sambar"],
+  rasam: ["rasam", "rasam soup"],
+  poriyal: ["poriyal", "stir fry"],
+  fry: ["fry", "varuval"],
+  kootu: ["kootu"],
+  chutney: ["chutney"],
+  pachadi: ["pachadi"],
+  thogayal: ["thuvaiyal"],
+  tiffin: ["tiffin"],
+  idli: ["tiffin"],
+  dosa: ["tiffin"],
+  upma: ["tiffin"],
+  pongal: ["tiffin"],
+};
+
+export interface DishCatalogFields {
+  name: string;
+  dish_group?: string | null;
+  dish_category?: string | null;
+  english_alias?: string | null;
+  /** @deprecated */
+  dish_type?: string | null;
+}
+
+export function dishGroupKey(dish: DishCatalogFields): string {
+  return normalizeCatalogLabel(dish.dish_group);
+}
+
+export function dishGroupMatchesSlotCategory(dish: DishCatalogFields, category: MealGroup): boolean {
+  const dishGroup = dishGroupKey(dish);
+  if (dishGroup) {
+    return SLOT_TO_DISH_GROUPS[category].includes(dishGroup);
+  }
+  return effectiveMealGroupLegacy(dish) === category;
+}
+
+export function dishCatalogTypeMatches(dish: DishCatalogFields, dishType: string): boolean {
+  const labels = SLOT_DISH_TYPE_LABELS[dishType] ?? [dishType.replace(/_/g, " ")];
+  const category = normalizeCatalogLabel(dish.dish_category);
+  const alias = normalizeCatalogLabel(dish.english_alias);
+  const name = dish.name.toLowerCase();
+
+  if (labels.some((label) => category === label || alias === label)) return true;
+  if (dishType === "sambar" && name.includes("sambar")) return true;
+  if (dishType === "rasam" && name.includes("rasam")) return true;
+
+  if (!dish.dish_group) {
+    return resolveDishType(dish.dish_type, dish.name) === dishType;
+  }
+  return false;
+}
+
+function effectiveMealGroupLegacy(dish: DishCatalogFields): MealGroup {
+  const resolved = resolveMealGroup(dish.dish_type, dish.name);
+  if (resolved === "tiffin") return "tiffin";
+
+  if (dish.dish_category && LEGACY_TO_GROUP[dish.dish_category]) {
+    return LEGACY_TO_GROUP[dish.dish_category];
+  }
+  if (dish.dish_category && (ALL_MEAL_GROUPS as string[]).includes(dish.dish_category)) {
+    return dish.dish_category as MealGroup;
+  }
+  return resolved;
+}
+
+export function mealGroupFromDishGroup(dishGroup: string | null | undefined): MealGroup {
+  const key = normalizeCatalogLabel(dishGroup);
+  if (key === "rice") return "rice";
+  if (key === "gravy" || key === "curry") return "gravy";
+  if (key === "side") return "side";
+  if (key === "chutney") return "chutney";
+  if (key === "tiffin") return "tiffin";
+  if (key === "snack") return "snack";
+  return "side";
+}
+
 
 const CANONICAL_DISH_TYPES = new Set(Object.keys(DISH_TYPE_LABELS));
 
@@ -115,6 +214,7 @@ const RAW_TYPE_TO_CANONICAL: Record<string, string> = {
   dosa: "dosa",
   upma: "upma",
   pongal: "pongal",
+  breakfast: "tiffin",
   puttu: "tiffin",
   appam: "tiffin",
   adai: "tiffin",
@@ -148,6 +248,7 @@ const TYPE_TO_MEAL_GROUP: Record<string, MealGroup> = {
   dosa: "tiffin",
   upma: "tiffin",
   pongal: "tiffin",
+  breakfast: "tiffin",
 };
 
 const NAME_TYPE_HINTS: Array<{ pattern: RegExp; dishType: string }> = [
@@ -245,13 +346,8 @@ export function normalizeDishSlot(slot: DishSlot): DishSlot {
   };
 }
 
-export function slotMatchesDish(
-  slot: DishSlot,
-  dish: { dish_category?: string | null; dish_type?: string | null; name: string }
-): boolean {
+export function slotMatchesDish(slot: DishSlot, dish: DishCatalogFields): boolean {
   const normalized = normalizeDishSlot(slot);
-  const dishType = resolveDishType(dish.dish_type, dish.name);
-  const group = effectiveMealGroup(dish);
 
   if (normalized.dishName?.trim()) {
     const needle = normalized.dishName.trim().toLowerCase();
@@ -260,21 +356,33 @@ export function slotMatchesDish(
     if (!matchesName) return false;
   }
 
-  if (normalized.dish_type) {
-    return dishType === normalized.dish_type;
-  }
   if (normalized.options?.length) {
-    if (normalized.options.includes(dishType)) return true;
+    if (normalized.options.some((option) => dishCatalogTypeMatches(dish, option))) return true;
+  }
+
+  if (!dishGroupMatchesSlotCategory(dish, normalized.category)) {
+    if (normalized.dish_type && dishCatalogTypeMatches(dish, normalized.dish_type)) {
+      return true;
+    }
+    return false;
+  }
+
+  if (normalized.dish_type) {
+    return dishCatalogTypeMatches(dish, normalized.dish_type);
+  }
+
+  if (normalized.options?.length) {
     const optionGroups = normalized.options
       .map((o) => LEGACY_TO_GROUP[o] ?? ((ALL_MEAL_GROUPS as string[]).includes(o) ? o : null))
       .filter(Boolean) as MealGroup[];
-    if (optionGroups.length && optionGroups.includes(group)) return true;
-    return normalized.options.some((o) => {
-      const optType = LEGACY_TO_DISH_TYPE[o] ?? o;
-      return dishType === optType;
+    if (optionGroups.some((group) => dishGroupMatchesSlotCategory(dish, group))) return true;
+    return normalized.options.some((option) => {
+      const optType = LEGACY_TO_DISH_TYPE[option] ?? option;
+      return dishCatalogTypeMatches(dish, optType);
     });
   }
-  return group === normalized.category;
+
+  return true;
 }
 
 export function slotAcceptsCategory(slot: DishSlot, group: MealGroup): boolean {
@@ -286,41 +394,35 @@ export function slotAcceptsCategory(slot: DishSlot, group: MealGroup): boolean {
   return optionGroups.includes(group);
 }
 
-export function dishMatchesCategoryFilter(
-  dish: { dish_category?: string | null; dish_type?: string | null; name: string },
-  filter?: string
-): boolean {
+export function dishMatchesCategoryFilter(dish: DishCatalogFields, filter?: string): boolean {
   if (!filter) return true;
-  const dishType = resolveDishType(dish.dish_type, dish.name);
-  const group = effectiveMealGroup(dish);
+
   if ((ALL_MEAL_GROUPS as string[]).includes(filter)) {
-    return group === filter;
+    return dishGroupMatchesSlotCategory(dish, filter as MealGroup);
   }
+
   if (LEGACY_TO_GROUP[filter]) {
     const expectedType = LEGACY_TO_DISH_TYPE[filter];
-    return group === LEGACY_TO_GROUP[filter] && (!expectedType || dishType === expectedType);
+    if (!dishGroupMatchesSlotCategory(dish, LEGACY_TO_GROUP[filter])) return false;
+    return !expectedType || dishCatalogTypeMatches(dish, expectedType);
   }
+
   if (CANONICAL_DISH_TYPES.has(filter)) {
-    return dishType === filter;
+    return dishCatalogTypeMatches(dish, filter);
   }
-  return dish.dish_category === filter || dishType === filter;
+
+  return (
+    normalizeCatalogLabel(dish.dish_category) === normalizeCatalogLabel(filter) ||
+    normalizeCatalogLabel(dish.dish_group) === normalizeCatalogLabel(filter) ||
+    dishCatalogTypeMatches(dish, filter)
+  );
 }
 
-export function effectiveMealGroup(dish: {
-  dish_category?: string | null;
-  dish_type?: string | null;
-  name: string;
-}): MealGroup {
-  if (dish.dish_category && LEGACY_TO_GROUP[dish.dish_category]) {
-    return LEGACY_TO_GROUP[dish.dish_category];
+export function effectiveMealGroup(dish: DishCatalogFields): MealGroup {
+  if (dish.dish_group) {
+    return mealGroupFromDishGroup(dish.dish_group);
   }
-  if (
-    dish.dish_category &&
-    (ALL_MEAL_GROUPS as string[]).includes(dish.dish_category)
-  ) {
-    return dish.dish_category as MealGroup;
-  }
-  return resolveMealGroup(dish.dish_type, dish.name);
+  return effectiveMealGroupLegacy(dish);
 }
 
 /** @alias effectiveMealGroup */
@@ -577,6 +679,21 @@ export function resolveComboStaple(
   return includesRice ? "Rice" : null;
 }
 
+/** Override template rice when selected dishes require a different staple (e.g. Poori Masala → Poori). */
+export function resolveStapleForCombo(
+  dishes: { baseTags?: string[]; pairsWith?: string[] }[],
+  templateStaple: string | null
+): string | null {
+  const tags = dishes.flatMap((d) => {
+    if (d.baseTags?.length) return d.baseTags.map((tag) => normalizeCatalogLabel(tag));
+    return (d.pairsWith ?? []).map((tag) => normalizeCatalogLabel(tag));
+  });
+  const hasPoori = tags.includes("poori");
+  const hasRice = tags.includes("rice");
+  if (hasPoori && !hasRice) return "Poori";
+  return templateStaple;
+}
+
 export function formatMealSlotLabel(slot: MealSlot): string {
   return uiSlotFromMealSlot(slot);
 }
@@ -596,15 +713,27 @@ export function createBlankMealPlan(): MealPlan {
 
 export function formatDishSearchSubtitle(dish: {
   name: string;
-  dishType?: string | null;
+  dishGroup?: string | null;
   dishCategory?: string | null;
+  englishAlias?: string | null;
+  /** @deprecated */
+  dishType?: string | null;
   ingredientName?: string | null;
 }): string {
-  const group = formatCategoryLabel(
-    (dish.dishCategory as MealGroup | undefined) ?? resolveMealGroup(dish.dishType, dish.name)
-  );
-  const type = dish.dishType ? formatDishTypeLabel(resolveDishType(dish.dishType, dish.name)) : null;
-  return [group, type, dish.ingredientName].filter(Boolean).join(" · ");
+  const groupLabel =
+    dish.dishGroup ??
+    formatCategoryLabel(
+      effectiveMealGroup({
+        name: dish.name,
+        dish_type: dish.dishType,
+        dish_category: dish.dishCategory,
+      })
+    );
+  const category =
+    dish.dishCategory ??
+    dish.englishAlias ??
+    (dish.dishType ? formatDishTypeLabel(dish.dishType) : null);
+  return [groupLabel, category, dish.ingredientName].filter(Boolean).join(" · ");
 }
 
 export interface MealGroupSlotPreset {
@@ -700,6 +829,7 @@ export const REGION_PRESET_TEMPLATES: MealTemplate[] = [
     },
   },
   {
+    id: "preset-tamil-nadu-lunch",
     name: "Tamil Nadu Lunch",
     meal_slots: ["lunch"],
     day_types: ["any"],

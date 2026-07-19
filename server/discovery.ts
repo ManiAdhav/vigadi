@@ -7,6 +7,7 @@ import {
   parseDishRow,
   resolveToCanonical,
 } from "./db";
+import { resolveDishType, mealGroupForDishType, MEAL_GROUP_LABELS, formatDishTypeLabel } from "../shared/mealTemplates";
 import { normalizeAlias } from "../shared/ingredientCatalog";
 import { resolveIngredient } from "../shared/ingredientSearch";
 import { GEMINI_MODEL } from "./geminiConfig";
@@ -198,15 +199,18 @@ async function persistDiscoveredDishes(
 ) {
   const stored: any[] = [];
   for (const dish of dishes) {
+    const canonicalType = resolveDishType(dish.dishType, dish.name);
+    const mealGroup = mealGroupForDishType(canonicalType);
     const id = await insertDish({
       ingredientId,
       name: dish.name,
+      dishGroup: MEAL_GROUP_LABELS[mealGroup],
+      dishCategory: formatDishTypeLabel(canonicalType),
+      baseTags: (dish.pairsWith ?? ["Rice"]).map((tag) => tag.toLowerCase()),
       youtubeUrl: dish.youtubeUrl,
       youtubeVideoId: extractYouTubeVideoId(dish.youtubeUrl) ?? undefined,
-      dishType: dish.dishType,
       spiceLevel: dish.spiceLevel,
       mainIngredients: dish.mainIngredients,
-      pairsWith: dish.pairsWith,
       description: dish.description,
       channelName: dish.channelName,
       source: getGeminiClient() ? "gemini_grounding" : "offline_template",

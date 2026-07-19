@@ -9,12 +9,19 @@ export interface CatalogDish {
   id: number;
   ingredientName?: string;
   name: string;
+  dishGroup: string | null;
+  dishCategory: string | null;
+  consistency: string | null;
+  baseTags: string[];
+  accompaniments: string[];
+  englishAlias: string | null;
   youtubeUrl: string | null;
   youtubeVideoId: string | null;
+  /** @deprecated legacy alias for dishCategory */
   dishType: string | null;
-  dishCategory?: string;
   spiceLevel: string | null;
   mainIngredients: string[];
+  /** Derived from baseTags for combo staple logic */
   pairsWith: string[];
   description: string | null;
   channelName: string | null;
@@ -53,9 +60,9 @@ export type {
   DayType,
   DaySettings,
   BalanceTarget,
-} from "../../shared/mealTemplates";
+} from "../shared/mealTemplates";
 
-export type { FoodPlate, FoodPlateSource } from "../../shared/foodPlates";
+export type { FoodPlate, FoodPlateSource } from "../shared/foodPlates";
 
 export interface Meal {
   id: string;

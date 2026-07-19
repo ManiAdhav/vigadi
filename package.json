@@ -18,7 +18,9 @@
     "seed:dishes": "tsx scripts/seed-dishes.ts",
     "sync:dishes": "tsx scripts/sync-dish-batch.ts",
     "sync:dishes:file": "tsx scripts/sync-dish-file.ts",
-    "sync:mixed-rice": "tsx scripts/sync-mixed-rice.ts"
+    "sync:mixed-rice": "tsx scripts/sync-mixed-rice.ts",
+    "export:catalog": "tsx scripts/export-dish-catalog.ts",
+    "import:catalog": "tsx scripts/import-dish-catalog-csv.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

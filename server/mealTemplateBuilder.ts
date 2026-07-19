@@ -14,6 +14,7 @@ import {
   normalizeTemplate,
   normalizeDishSlot,
   resolveComboStaple,
+  resolveStapleForCombo,
   isRiceStapleCoveredByTag,
   shouldFillSlotAtMeal,
   slotMatchesDish,
@@ -101,6 +102,7 @@ export function unlockIngredientHint(category: MealGroup): string {
     rice: "a vegetable like carrot or beans",
     side: "a vegetable like potato or beans",
     chutney: "coconut or a vegetable",
+    snack: "a snack ingredient like aval or potato",
   };
   return hints[category] ?? "a primary ingredient";
 }
@@ -238,7 +240,10 @@ export async function buildCombosFromTemplate(params: {
     if (picked.length === 0) continue;
 
     const parsed = picked.map(parseDishRow);
-    const staple = resolveComboStaple(template, mealSlot, includesRice);
+    const staple = resolveStapleForCombo(
+      parsed,
+      resolveComboStaple(template, mealSlot, includesRice)
+    );
     const subComponents = [...parsed.map((d) => d.name)];
     if (staple) {
       if (riceStapleCovered) subComponents.unshift(staple);

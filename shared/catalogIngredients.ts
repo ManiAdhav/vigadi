@@ -11,7 +11,7 @@ export function templateNeedsMixedRice(template: MealTemplate, mealSlot: MealSlo
     const normalized = normalizeDishSlot(slot);
     return (
       (normalized.category === "rice" && normalized.dish_type === "mixed_rice") ||
-      slot.category === "mixed_rice" ||
+      (slot.category as string) === "mixed_rice" ||
       (slot.options ?? []).includes("mixed_rice")
     );
   });
@@ -73,7 +73,13 @@ export function filterMixedRiceForIngredients<T extends { name: string }>(
 
 import { dishMatchesCategoryFilter } from "./mealTemplates";
 
-export function filterDishesByCategory<T extends { dish_category?: string | null; dish_type?: string | null; name: string }>(
+export function filterDishesByCategory<T extends {
+  dish_group?: string | null;
+  dish_category?: string | null;
+  english_alias?: string | null;
+  name: string;
+  dish_type?: string | null;
+}>(
   dishes: T[],
   category?: MealGroup | string
 ): T[] {

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   resolveMealGroup,
   resolveDishType,
+  resolveStapleForCombo,
   DISH_PICKER_PILLS,
 } from "../../shared/mealTemplates";
 
@@ -46,5 +47,33 @@ describe("resolveMealGroup", () => {
 
   it("maps poriyal dish type to side group", () => {
     expect(resolveMealGroup("poriyal", "Carrot Poriyal")).toBe("side");
+  });
+
+  it("maps breakfast dish type to tiffin group", () => {
+    expect(resolveMealGroup("breakfast", "Rava Upma")).toBe("tiffin");
+  });
+
+  it("maps Ven Pongal to tiffin group", () => {
+    expect(resolveMealGroup("side", "Ven Pongal")).toBe("tiffin");
+  });
+});
+
+describe("resolveStapleForCombo", () => {
+  it("uses Poori when a dish base_tags include poori but not rice", () => {
+    expect(
+      resolveStapleForCombo([{ baseTags: ["poori"] }], "Rice")
+    ).toBe("Poori");
+  });
+
+  it("keeps template staple for rice meals", () => {
+    expect(
+      resolveStapleForCombo([{ baseTags: ["rice", "chapati"] }], "Rice")
+    ).toBe("Rice");
+  });
+
+  it("supports legacy pairsWith", () => {
+    expect(
+      resolveStapleForCombo([{ pairsWith: ["Poori"] }], "Rice")
+    ).toBe("Poori");
   });
 });

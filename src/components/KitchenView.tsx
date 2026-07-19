@@ -517,7 +517,7 @@ export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: Kitc
                           <span className="w-1.5 h-1.5 rounded-full bg-[#2E9D70] shrink-0" />
                           <span className="text-xs font-medium text-espresso truncate">{dish.name}</span>
                           <span className="text-[9px] text-espresso/40 font-mono shrink-0">
-                            ({dish.dishCategory || dish.dishType})
+                            ({[dish.dishGroup, dish.dishCategory].filter(Boolean).join(" · ") || dish.dishType})
                           </span>
                         </div>
                         {dish.youtubeUrl && (

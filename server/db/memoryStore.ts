@@ -5,7 +5,6 @@ import {
   DaySettings,
   DEFAULT_DAY_SETTINGS,
   MealTemplate,
-  resolveMealGroup,
 } from "../../shared/mealTemplates";
 import type { FoodPlate } from "../../shared/foodPlates";
 
@@ -41,13 +40,16 @@ export function memoryUpsertIngredient(name: string): number {
 export function memoryInsertDish(dish: {
   ingredientId: number;
   name: string;
+  dishGroup?: string;
+  dishCategory?: string;
+  consistency?: string;
+  baseTags?: string[];
+  accompaniments?: string[];
+  englishAlias?: string;
   youtubeUrl?: string;
   youtubeVideoId?: string;
-  dishType?: string;
-  dishCategory?: string;
   spiceLevel?: string;
   mainIngredients?: string[];
-  pairsWith?: string[];
   description?: string;
   channelName?: string;
   source?: string;
@@ -63,14 +65,18 @@ export function memoryInsertDish(dish: {
     id,
     ingredient_id: dish.ingredientId,
     name: dish.name,
+    dish_group: dish.dishGroup ?? null,
+    dish_category: dish.dishCategory ?? null,
+    consistency: dish.consistency ?? null,
+    base_tags: dish.baseTags ?? [],
+    accompaniments: dish.accompaniments ?? [],
+    english_alias: dish.englishAlias ?? null,
     youtube_url: dish.youtubeUrl ?? null,
     youtube_video_id: dish.youtubeVideoId ?? null,
-    dish_type: dish.dishType ?? null,
-    dish_category:
-      dish.dishCategory ?? resolveMealGroup(dish.dishType, dish.name),
+    dish_type: null,
     spice_level: dish.spiceLevel ?? null,
     main_ingredients: dish.mainIngredients ?? [],
-    pairs_with: dish.pairsWith ?? ["Rice"],
+    pairs_with: null,
     description: dish.description ?? null,
     channel_name: dish.channelName ?? null,
     discovered_at: new Date().toISOString(),
@@ -121,7 +127,9 @@ export function memorySearchDishes(queryText: string, limit = 10): DishRow[] {
       (d) =>
         d.name.toLowerCase().includes(q) ||
         d.ingredient_name?.toLowerCase().includes(q) ||
-        d.dish_type?.toLowerCase().includes(q)
+        d.dish_group?.toLowerCase().includes(q) ||
+        d.dish_category?.toLowerCase().includes(q) ||
+        d.english_alias?.toLowerCase().includes(q)
     )
     .sort((a, b) => {
       const aStarts = a.name.toLowerCase().startsWith(q);

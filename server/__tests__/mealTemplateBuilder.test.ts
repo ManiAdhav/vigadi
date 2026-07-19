@@ -5,6 +5,7 @@ import {
   normalizeDishSlot,
   normalizeSlotCategory,
   slotMatchesDish,
+  type MealGroup,
 } from "../../shared/mealTemplates";
 import { unlockIngredientHint } from "../mealTemplateBuilder";
 
@@ -40,35 +41,55 @@ describe("normalizeSlotCategory", () => {
 
 describe("normalizeDishSlot", () => {
   it("remaps protein category in saved templates", () => {
-    expect(normalizeDishSlot({ category: "protein", count: 1 }).category).toBe("side");
+    expect(normalizeDishSlot({ category: "protein" as MealGroup, count: 1 }).category).toBe("side");
   });
 
   it("migrates legacy mixed_rice slot to rice group with dish_type", () => {
-    const slot = normalizeDishSlot({ category: "mixed_rice", count: 1 });
+    const slot = normalizeDishSlot({ category: "mixed_rice" as MealGroup, count: 1 });
     expect(slot.category).toBe("rice");
     expect(slot.dish_type).toBe("mixed_rice");
   });
 });
 
 describe("effectiveMealGroup", () => {
-  it("maps legacy DB protein tag to side", () => {
+  it("maps Excel Curry group to gravy slot role", () => {
     expect(
       effectiveMealGroup({
-        dish_category: "protein",
-        dish_type: "fry",
-        name: "Chicken 65",
+        dish_group: "Curry",
+        dish_category: "Kuzhambu",
+        name: "Sambar",
       })
-    ).toBe("side");
+    ).toBe("gravy");
   });
 
   it("classifies chicken fry as side", () => {
     expect(
       effectiveMealGroup({
-        dish_category: "side",
-        dish_type: "fry",
+        dish_group: "Side",
+        dish_category: "Fry",
         name: "Chicken 65",
       })
     ).toBe("side");
+  });
+
+  it("classifies Ven Pongal as tiffin from Excel group", () => {
+    expect(
+      effectiveMealGroup({
+        dish_group: "Tiffin",
+        dish_category: "Tiffin",
+        name: "Ven Pongal",
+      })
+    ).toBe("tiffin");
+  });
+
+  it("supports legacy DB tags when dish_group is missing", () => {
+    expect(
+      effectiveMealGroup({
+        dish_category: "side_poriyal",
+        dish_type: "side",
+        name: "Ven Pongal",
+      })
+    ).toBe("tiffin");
   });
 });
 
@@ -83,7 +104,7 @@ describe("isRiceStapleCoveredByTag", () => {
   });
 
   it("supports legacy rice_staple slots", () => {
-    expect(isRiceStapleCoveredByTag({ category: "rice_staple", count: 1 }, true)).toBe(true);
+    expect(isRiceStapleCoveredByTag({ category: "rice_staple" as MealGroup, count: 1 }, true)).toBe(true);
   });
 });
 
@@ -121,7 +142,12 @@ describe("slotMatchesDish", () => {
     expect(
       slotMatchesDish(
         { category: "chutney", count: 1, options: ["sambar"] },
-        { dish_category: "gravy", dish_type: "sambar", name: "Sambar" }
+        {
+          dish_group: "Curry",
+          dish_category: "Kuzhambu",
+          english_alias: "Sambar",
+          name: "Sambar",
+        }
       )
     ).toBe(true);
   });
@@ -130,7 +156,11 @@ describe("slotMatchesDish", () => {
     expect(
       slotMatchesDish(
         { category: "rice", dish_type: "mixed_rice", count: 1 },
-        { dish_category: "rice", dish_type: "mixed_rice", name: "Carrot Rice" }
+        {
+          dish_group: "Rice",
+          dish_category: "Mixed Rice",
+          name: "Carrot Rice",
+        }
       )
     ).toBe(true);
   });

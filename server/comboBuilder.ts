@@ -5,6 +5,7 @@ import {
   parseDishRow,
   TasteProfile,
 } from "./db";
+import { normalizeCatalogLabel } from "../shared/mealTemplates";
 import { GEMINI_MODEL } from "./geminiConfig";
 import { getGeminiClient } from "./discovery";
 import { cleanAndParseJson } from "./jsonUtils";
@@ -50,16 +51,20 @@ export function parseComboRules(rulesText: string): ComboRules {
 }
 
 function isGravy(dish: DishRow): boolean {
+  const group = normalizeCatalogLabel(dish.dish_group ?? "");
+  if (group) return group === "gravy" || group === "curry";
   return GRAVY_TYPES.has((dish.dish_type ?? "").toLowerCase());
 }
 
 function isSide(dish: DishRow): boolean {
+  const group = normalizeCatalogLabel(dish.dish_group ?? "");
+  if (group) return group === "side";
   return SIDE_TYPES.has((dish.dish_type ?? "").toLowerCase());
 }
 
 export function scoreDishForTaste(dish: DishRow, taste: TasteProfile, ingredientName: string): number {
   let score = 0;
-  const type = (dish.dish_type ?? "").toLowerCase();
+  const type = normalizeCatalogLabel(dish.dish_category ?? dish.dish_type ?? "");
   const name = dish.name.toLowerCase();
 
   score += taste.liked_dish_types[type] ?? 0;
@@ -246,7 +251,7 @@ async function buildCombosWithGemini(params: {
     id: d.id,
     ingredient: d.ingredient_name,
     name: d.name,
-    type: d.dish_type,
+    type: d.dish_category ?? d.dish_type,
     spice: d.spice_level,
     youtube: d.youtube_url,
   }));

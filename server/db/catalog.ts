@@ -1,7 +1,11 @@
 import { query, isDatabaseConfigured } from "./pool";
 import { normalizeIngredient } from "./ingredientSignature";
 import { resolveToCanonical, resolveIngredient } from "./ingredientResolver";
-import { resolveMealGroup, dishMatchesCategoryFilter } from "../../shared/mealTemplates";
+import {
+  dishMatchesCategoryFilter,
+  effectiveMealGroup,
+  normalizeCatalogLabel,
+} from "../../shared/mealTemplates";
 import {
   expandCatalogIngredients,
   filterDishesByCategory,
@@ -22,12 +26,19 @@ export interface DishRow {
   id: number;
   ingredient_id: number;
   name: string;
+  dish_group: string | null;
+  dish_category: string | null;
+  consistency: string | null;
+  base_tags: string | unknown[] | null;
+  accompaniments: string | unknown[] | null;
+  english_alias: string | null;
   youtube_url: string | null;
   youtube_video_id: string | null;
+  /** @deprecated */
   dish_type: string | null;
-  dish_category: string | null;
   spice_level: string | null;
   main_ingredients: string | unknown[] | null;
+  /** @deprecated */
   pairs_with: string | unknown[] | null;
   description: string | null;
   channel_name: string | null;
@@ -37,6 +48,18 @@ export interface DishRow {
 }
 
 export const MIN_CACHED_DISHES = 5;
+
+const BASE_TAG_STAPLE_LABELS: Record<string, string> = {
+  rice: "Rice",
+  chapati: "Chapati",
+  poori: "Poori",
+  idli: "Idli",
+  dosa: "Dosa",
+  parotta: "Parotta",
+  idiyappam: "Idiyappam",
+  appam: "Appam",
+  standalone: "Standalone",
+};
 
 function parseJsonArray(value: string | unknown[] | null | undefined): unknown[] {
   if (Array.isArray(value)) return value;
@@ -50,20 +73,31 @@ function parseJsonArray(value: string | unknown[] | null | undefined): unknown[]
   return [];
 }
 
+function baseTagsToStaples(tags: string[]): string[] {
+  return tags.map((tag) => BASE_TAG_STAPLE_LABELS[normalizeCatalogLabel(tag)] ?? tag);
+}
+
 export function parseDishRow(row: DishRow) {
-  const dishCategory =
-    row.dish_category ?? resolveMealGroup(row.dish_type, row.name);
+  const baseTags = parseJsonArray(row.base_tags) as string[];
+  const legacyPairs = parseJsonArray(row.pairs_with) as string[];
+  const pairsWith = baseTags.length > 0 ? baseTagsToStaples(baseTags) : legacyPairs.length ? legacyPairs : ["Rice"];
+
   return {
     id: row.id,
     ingredientName: row.ingredient_name,
     name: row.name,
+    dishGroup: row.dish_group,
+    dishCategory: row.dish_category,
+    consistency: row.consistency,
+    baseTags,
+    accompaniments: parseJsonArray(row.accompaniments) as string[],
+    englishAlias: row.english_alias,
     youtubeUrl: row.youtube_url,
     youtubeVideoId: row.youtube_video_id,
-    dishType: row.dish_type,
-    dishCategory,
+    dishType: row.dish_category ?? row.dish_type,
     spiceLevel: row.spice_level,
     mainIngredients: parseJsonArray(row.main_ingredients) as string[],
-    pairsWith: (parseJsonArray(row.pairs_with).length ? parseJsonArray(row.pairs_with) : ["Rice"]) as string[],
+    pairsWith,
     description: row.description,
     channelName: row.channel_name,
     discoveredAt: row.discovered_at,
@@ -100,13 +134,16 @@ export async function getIngredientByName(name: string): Promise<{ id: number; n
 export async function insertDish(dish: {
   ingredientId: number;
   name: string;
+  dishGroup?: string;
+  dishCategory?: string;
+  consistency?: string;
+  baseTags?: string[];
+  accompaniments?: string[];
+  englishAlias?: string;
   youtubeUrl?: string;
   youtubeVideoId?: string;
-  dishType?: string;
-  dishCategory?: string;
   spiceLevel?: string;
   mainIngredients?: string[];
-  pairsWith?: string[];
   description?: string;
   channelName?: string;
   source?: string;
@@ -115,22 +152,25 @@ export async function insertDish(dish: {
   try {
     const result = await query<{ id: number }>(
       `INSERT INTO dishes (
-        ingredient_id, name, youtube_url, youtube_video_id, dish_type, dish_category, spice_level,
-        main_ingredients, pairs_with, description, channel_name, source
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12)
+        ingredient_id, name, dish_group, dish_category, consistency,
+        base_tags, accompaniments, english_alias, youtube_url, youtube_video_id,
+        spice_level, main_ingredients, description, channel_name, source
+      ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12::jsonb, $13, $14, $15)
       ON CONFLICT (ingredient_id, name) DO NOTHING
       RETURNING id`,
       [
         dish.ingredientId,
         dish.name,
+        dish.dishGroup ?? null,
+        dish.dishCategory ?? null,
+        dish.consistency ?? null,
+        JSON.stringify(dish.baseTags ?? []),
+        JSON.stringify(dish.accompaniments ?? []),
+        dish.englishAlias ?? null,
         dish.youtubeUrl ?? null,
         dish.youtubeVideoId ?? null,
-        dish.dishType ?? null,
-        dish.dishCategory ??
-          resolveMealGroup(dish.dishType, dish.name),
         dish.spiceLevel ?? null,
         JSON.stringify(dish.mainIngredients ?? []),
-        JSON.stringify(dish.pairsWith ?? ["Rice"]),
         dish.description ?? null,
         dish.channelName ?? null,
         dish.source ?? "gemini_grounding",
@@ -262,7 +302,9 @@ export async function searchDishes(
       `SELECT d.*, i.name as ingredient_name
        FROM dishes d
        JOIN ingredients i ON d.ingredient_id = i.id
-       WHERE d.name ILIKE $1 OR i.name ILIKE $1 OR d.dish_type ILIKE $1
+       WHERE d.name ILIKE $1 OR i.name ILIKE $1
+          OR d.dish_group ILIKE $1 OR d.dish_category ILIKE $1
+          OR d.english_alias ILIKE $1
        ORDER BY
          CASE WHEN d.name ILIKE $2 THEN 0 WHEN i.name ILIKE $2 THEN 1 ELSE 2 END,
          d.name
@@ -276,3 +318,5 @@ export async function searchDishes(
   }
   return rows.slice(0, limit);
 }
+
+export { effectiveMealGroup };
