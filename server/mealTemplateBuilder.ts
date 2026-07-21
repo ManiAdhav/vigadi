@@ -1,4 +1,4 @@
-import { DishRow, getCatalogDishesForBuild, parseDishRow, getTasteProfile } from "./db";
+import { DishRow, getCatalogDishesForBuild, parseDishRow, getTasteProfile, type TasteProfile } from "./db";
 import {
   expandCatalogIngredients,
   filterMixedRiceForIngredients,
@@ -26,6 +26,7 @@ import { BuiltCombo, scoreDishForTaste, MAX_COMBOS } from "./comboBuilder";
 import {
   compareTemplateSlotCandidates,
   resolveTemplateComboStaple,
+  type TemplateSlotTasteProfile,
 } from "./comboBalance";
 
 export interface UnfilledSlot {
@@ -115,38 +116,127 @@ function allIngredientHints(slot: DishSlot): string {
   return unlockIngredientHint(slot.category);
 }
 
+type CompareTemplateCandidates = typeof compareTemplateSlotCandidates;
+
 function pickForSlot(
   candidates: DishRow[],
   slot: DishSlot,
-  taste: Awaited<ReturnType<typeof getTasteProfile>>,
+  taste: TasteProfile,
   variant: number,
   usedIngredients: Set<string>,
-  alreadyPicked: DishRow[] = []
+  alreadyPicked: DishRow[] = [],
+  compareCandidates: CompareTemplateCandidates = compareTemplateSlotCandidates
 ): DishRow[] {
-  const scoreTaste = (dish: DishRow, profile: typeof taste) =>
+  const scoreTaste = (dish: DishRow, profile: TasteProfile) =>
     scoreDishForTaste(dish, profile, dish.ingredient_name ?? "");
-  const sorted = [...candidates].sort((a, b) =>
-    compareTemplateSlotCandidates(a, b, alreadyPicked, taste, variant, scoreTaste)
-  );
-
   const picked: DishRow[] = [];
-  for (const dish of sorted) {
-    if (picked.length >= slot.count) break;
-    const ing = (dish.ingredient_name ?? "").toLowerCase();
-    if (!usedIngredients.has(ing)) {
-      picked.push(dish);
-      usedIngredients.add(ing);
-    }
-  }
+  const balanceContext = [...alreadyPicked];
 
-  if (picked.length < slot.count) {
+  const pickNext = (requireUniqueIngredient: boolean): boolean => {
+    const remaining = candidates.filter((c) => !picked.some((p) => p.id === c.id));
+    const sorted = [...remaining].sort((a, b) =>
+      compareCandidates(
+        a,
+        b,
+        balanceContext,
+        taste as TemplateSlotTasteProfile,
+        variant,
+        scoreTaste
+      )
+    );
+
     for (const dish of sorted) {
-      if (picked.length >= slot.count) break;
-      if (!picked.find((p) => p.id === dish.id)) picked.push(dish);
+      const ing = (dish.ingredient_name ?? "").toLowerCase();
+      if (requireUniqueIngredient && usedIngredients.has(ing)) continue;
+      picked.push(dish);
+      if (requireUniqueIngredient) usedIngredients.add(ing);
+      balanceContext.push(dish);
+      return true;
     }
+    return false;
+  };
+
+  while (picked.length < slot.count) {
+    if (!pickNext(true)) break;
+  }
+  while (picked.length < slot.count) {
+    if (!pickNext(false)) break;
   }
 
   return picked.slice(0, slot.count);
+}
+
+export interface TemplateSlotFillEntry {
+  slotIndex: number;
+  category: MealGroup;
+  requested: number;
+  filled: number;
+}
+
+export interface TemplateSlotFillResult {
+  picked: DishRow[];
+  unfilled: UnfilledSlot[];
+  slotFills: TemplateSlotFillEntry[];
+}
+
+/** Thin wrapper for one template combo fill — no DB; used by AC8 regression tests. */
+export function fillTemplateSlotsFromCatalog(params: {
+  catalogDishes: DishRow[];
+  fillableSlots: DishSlot[];
+  taste: TasteProfile;
+  variant?: number;
+  ingredients?: string[];
+  compareCandidates?: CompareTemplateCandidates;
+}): TemplateSlotFillResult {
+  const usedIds = new Set<number>();
+  const usedIngredients = new Set<string>();
+  const picked: DishRow[] = [];
+  const unfilled: UnfilledSlot[] = [];
+  const slotFills: TemplateSlotFillEntry[] = [];
+  const variant = params.variant ?? 0;
+  const ingredients = params.ingredients ?? [];
+  const compareCandidates = params.compareCandidates ?? compareTemplateSlotCandidates;
+
+  params.fillableSlots.forEach((slot, slotIndex) => {
+    const candidates = dishesMatchingSlot(
+      params.catalogDishes,
+      slot,
+      usedIds,
+      ingredients
+    );
+    const slotPicked = pickForSlot(
+      candidates,
+      slot,
+      params.taste,
+      variant,
+      usedIngredients,
+      picked,
+      compareCandidates
+    );
+
+    slotFills.push({
+      slotIndex,
+      category: slot.category,
+      requested: slot.count,
+      filled: slotPicked.length,
+    });
+
+    if (slotPicked.length < slot.count) {
+      unfilled.push({
+        slotIndex,
+        category: slot.category,
+        options: slot.options,
+        note: slot.note,
+      });
+    }
+
+    slotPicked.forEach((d) => {
+      picked.push(d);
+      usedIds.add(d.id);
+    });
+  });
+
+  return { picked, unfilled, slotFills };
 }
 
 function buildComboNameFromTemplate(dishes: DishRow[], template: MealTemplate, mealSlot: MealSlot): string {
