@@ -219,6 +219,70 @@ export function shouldSkipPlainRiceStaple(anchor: DishRow): boolean {
   return normalizeGroup(anchor.dish_group) === "rice";
 }
 
+export function pickedIncludesVarietyRice(dishes: DishRow[]): boolean {
+  return dishes.some(shouldSkipPlainRiceStaple);
+}
+
+export function resolveTemplateComboStaple(
+  picked: DishRow[],
+  templateStaple: string | null
+): string | null {
+  if (pickedIncludesVarietyRice(picked) && templateStaple === "Rice") {
+    return null;
+  }
+  return templateStaple;
+}
+
+export function findTemplateComboAnchor(alreadyPicked: DishRow[]): DishRow | null {
+  const gravyOrCurry = alreadyPicked.find(isGravyOrCurry);
+  if (gravyOrCurry) return gravyOrCurry;
+  const riceAnchor = alreadyPicked.find((d) => normalizeGroup(d.dish_group) === "rice");
+  return riceAnchor ?? null;
+}
+
+export function scoreTemplateCandidateBalance(
+  candidate: DishRow,
+  alreadyPicked: DishRow[]
+): number {
+  const anchor = findTemplateComboAnchor(alreadyPicked);
+  if (!anchor) return 0;
+  const existingSides = alreadyPicked.filter((d) => d.id !== anchor.id);
+  return scoreComboBalance(anchor, [...existingSides, candidate]);
+}
+
+export interface TemplateSlotTasteProfile {
+  liked_dish_types: Record<string, number>;
+  disliked_dish_types: Record<string, number>;
+  liked_prep_styles: Record<string, string[]>;
+  disliked_prep_styles: Record<string, string[]>;
+  preferred_spice: string | null;
+  liked_combos: unknown[];
+  disliked_combos: unknown[];
+  ingredient_preferences: Record<
+    string,
+    { preferred: string[]; avoided: string[] }
+  >;
+}
+
+export function compareTemplateSlotCandidates(
+  a: DishRow,
+  b: DishRow,
+  alreadyPicked: DishRow[],
+  taste: TemplateSlotTasteProfile,
+  variant: number,
+  scoreTaste: (dish: DishRow, taste: TemplateSlotTasteProfile) => number
+): number {
+  const tasteDelta =
+    scoreTaste(b, taste) -
+    scoreTaste(a, taste) +
+    variant * ((a.id % 7) - (b.id % 7));
+  if (tasteDelta !== 0) return tasteDelta;
+  return (
+    scoreTemplateCandidateBalance(b, alreadyPicked) -
+    scoreTemplateCandidateBalance(a, alreadyPicked)
+  );
+}
+
 export function scoreComboBalance(anchor: DishRow, sides: DishRow[]): number {
   let score = 0;
   const allDishes = [anchor, ...sides];

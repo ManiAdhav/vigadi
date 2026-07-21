@@ -23,6 +23,10 @@ import {
 } from "../shared/mealTemplates";
 import type { MealGroup } from "../shared/mealTemplates";
 import { BuiltCombo, scoreDishForTaste, MAX_COMBOS } from "./comboBuilder";
+import {
+  compareTemplateSlotCandidates,
+  resolveTemplateComboStaple,
+} from "./comboBalance";
 
 export interface UnfilledSlot {
   slotIndex: number;
@@ -116,13 +120,13 @@ function pickForSlot(
   slot: DishSlot,
   taste: Awaited<ReturnType<typeof getTasteProfile>>,
   variant: number,
-  usedIngredients: Set<string>
+  usedIngredients: Set<string>,
+  alreadyPicked: DishRow[] = []
 ): DishRow[] {
-  const sorted = [...candidates].sort(
-    (a, b) =>
-      scoreDishForTaste(b, taste, b.ingredient_name ?? "") -
-        scoreDishForTaste(a, taste, a.ingredient_name ?? "") +
-      variant * (a.id % 7)
+  const scoreTaste = (dish: DishRow, profile: typeof taste) =>
+    scoreDishForTaste(dish, profile, dish.ingredient_name ?? "");
+  const sorted = [...candidates].sort((a, b) =>
+    compareTemplateSlotCandidates(a, b, alreadyPicked, taste, variant, scoreTaste)
   );
 
   const picked: DishRow[] = [];
@@ -218,7 +222,14 @@ export async function buildCombosFromTemplate(params: {
 
     fillableSlots.forEach((slot, slotIndex) => {
       const candidates = dishesMatchingSlot(catalogDishes, slot, usedIds, params.ingredients);
-      const slotPicked = pickForSlot(candidates, slot, taste, variant, usedIngredients);
+      const slotPicked = pickForSlot(
+        candidates,
+        slot,
+        taste,
+        variant,
+        usedIngredients,
+        picked
+      );
 
       if (slotPicked.length < slot.count) {
         unfilled.push({
@@ -240,9 +251,12 @@ export async function buildCombosFromTemplate(params: {
     if (picked.length === 0) continue;
 
     const parsed = picked.map(parseDishRow);
-    const staple = resolveStapleForCombo(
-      parsed,
-      resolveComboStaple(template, mealSlot, includesRice)
+    const staple = resolveTemplateComboStaple(
+      picked,
+      resolveStapleForCombo(
+        parsed,
+        resolveComboStaple(template, mealSlot, includesRice)
+      )
     );
     const subComponents = [...parsed.map((d) => d.name)];
     if (staple) {
