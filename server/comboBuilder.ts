@@ -9,6 +9,16 @@ import { normalizeCatalogLabel } from "../shared/mealTemplates";
 import { GEMINI_MODEL } from "./geminiConfig";
 import { getGeminiClient } from "./discovery";
 import { cleanAndParseJson } from "./jsonUtils";
+import {
+  allowsIngredientReuse,
+  anchorSignature,
+  buildBalanceRationale,
+  getEligibleArchetypes,
+  scoreComboBalance,
+  shouldSkipPlainRiceStaple,
+  type BalanceArchetype,
+  type ComboSignature,
+} from "./comboBalance";
 
 export const MIN_COMBOS = 3;
 export const MAX_COMBOS = 5;
@@ -96,65 +106,246 @@ export function scoreDishForTaste(dish: DishRow, taste: TasteProfile, ingredient
   return score;
 }
 
-function pickDishesForCombo(
-  allDishes: DishRow[],
+function isRiceAnchor(dish: DishRow): boolean {
+  return normalizeCatalogLabel(dish.dish_group ?? "") === "rice";
+}
+
+function signatureKey(signature: ComboSignature): string {
+  return `${signature.consistencyBand}:${signature.spiceBand}`;
+}
+
+function tasteScore(dish: DishRow, taste: TasteProfile): number {
+  return scoreDishForTaste(dish, taste, dish.ingredient_name ?? "");
+}
+
+function comboTotalScore(anchor: DishRow, sides: DishRow[], taste: TasteProfile): number {
+  const tasteTotal =
+    tasteScore(anchor, taste) + sides.reduce((sum, side) => sum + tasteScore(side, taste), 0);
+  return tasteTotal + scoreComboBalance(anchor, sides);
+}
+
+function isComboIngredientValid(dishes: DishRow[]): boolean {
+  for (let i = 0; i < dishes.length; i++) {
+    for (let j = i + 1; j < dishes.length; j++) {
+      if (!allowsIngredientReuse(dishes[i], dishes[j])) return false;
+    }
+  }
+  return true;
+}
+
+function isAnchorCandidate(dish: DishRow, archetype: BalanceArchetype): boolean {
+  if (archetype.id === "D") {
+    return isRiceAnchor(dish) && archetype.matchesAnchor(dish);
+  }
+  return isGravy(dish) && archetype.matchesAnchor(dish);
+}
+
+function isSideCandidate(dish: DishRow, archetype: BalanceArchetype): boolean {
+  if (archetype.id === "E") {
+    return isSide(dish) || (isProteinSideForArchetypeE(dish));
+  }
+  return isSide(dish);
+}
+
+function isProteinSideForArchetypeE(dish: DishRow): boolean {
+  const group = normalizeCatalogLabel(dish.dish_group ?? "");
+  return group === "side" || group === "curry";
+}
+
+function sideMatchesSlot(
+  dish: DishRow,
+  archetype: BalanceArchetype,
+  slotIndex: number,
+  sideCount: number
+): boolean {
+  if (archetype.id === "D" && slotIndex > 0) {
+    return isSide(dish);
+  }
+  return archetype.matchesSide(dish, slotIndex);
+}
+
+function pickSideCombinations(
+  anchor: DishRow,
+  sideCandidates: DishRow[],
+  archetype: BalanceArchetype,
+  sideCount: number,
+  taste: TasteProfile
+): DishRow[][] {
+  const sorted = [...sideCandidates].sort((a, b) => tasteScore(b, taste) - tasteScore(a, taste));
+  const results: DishRow[][] = [];
+
+  function backtrack(slotIndex: number, picked: DishRow[], available: DishRow[]): void {
+    if (slotIndex === sideCount) {
+      results.push([...picked]);
+      return;
+    }
+    for (const candidate of available) {
+      if (!sideMatchesSlot(candidate, archetype, slotIndex, sideCount)) continue;
+      const comboDishes = [anchor, ...picked, candidate];
+      if (!isComboIngredientValid(comboDishes)) continue;
+      const remaining = available.filter((d) => d.id !== candidate.id);
+      backtrack(slotIndex + 1, [...picked, candidate], remaining);
+    }
+  }
+
+  backtrack(0, [], sorted);
+  return results;
+}
+
+interface ScoredArchetypeCombo {
+  anchor: DishRow;
+  sides: DishRow[];
+  archetypeId: BalanceArchetype["id"];
+  score: number;
+  signature: ComboSignature;
+}
+
+function findBestComboForArchetype(
+  archetype: BalanceArchetype,
+  dishes: DishRow[],
   rules: ComboRules,
   taste: TasteProfile,
   usedDishIds: Set<number>,
-  variant: number
-): DishRow[] {
-  const gravies = allDishes.filter((d) => isGravy(d) && !usedDishIds.has(d.id));
-  const sides = allDishes.filter((d) => isSide(d) && !usedDishIds.has(d.id));
+  usedSignatures: Set<string>
+): ScoredArchetypeCombo | null {
+  const available = dishes.filter((d) => !usedDishIds.has(d.id));
+  const anchorCandidates = available
+    .filter((d) => isAnchorCandidate(d, archetype))
+    .sort((a, b) => tasteScore(b, taste) - tasteScore(a, taste))
+    .slice(0, 12);
+  const sideCandidates = available
+    .filter((d) => isSideCandidate(d, archetype))
+    .sort((a, b) => tasteScore(b, taste) - tasteScore(a, taste))
+    .slice(0, 20);
 
-  gravies.sort(
-    (a, b) =>
-      scoreDishForTaste(b, taste, b.ingredient_name ?? "") -
-        scoreDishForTaste(a, taste, a.ingredient_name ?? "") +
-      variant * (a.id % 3)
-  );
-  sides.sort(
-    (a, b) =>
-      scoreDishForTaste(b, taste, b.ingredient_name ?? "") -
-        scoreDishForTaste(a, taste, a.ingredient_name ?? "") +
-      variant * (b.id % 5)
-  );
+  let best: ScoredArchetypeCombo | null = null;
 
-  const picked: DishRow[] = [];
-  const usedIngredients = new Set<string>();
+  for (const anchor of anchorCandidates) {
+    const sideCombos = pickSideCombinations(
+      anchor,
+      sideCandidates.filter((d) => d.id !== anchor.id),
+      archetype,
+      rules.sideCount,
+      taste
+    );
+    for (const sides of sideCombos) {
+      const signature = archetype.signature(anchor);
+      const key = signatureKey(signature);
+      if (usedSignatures.has(key)) continue;
 
-  for (const g of gravies) {
-    if (picked.filter(isGravy).length >= rules.gravyCount) break;
-    const ing = (g.ingredient_name ?? "").toLowerCase();
-    if (!usedIngredients.has(ing)) {
-      picked.push(g);
-      usedIngredients.add(ing);
+      const score = comboTotalScore(anchor, sides, taste);
+      if (!best || score > best.score) {
+        best = { anchor, sides, archetypeId: archetype.id, score, signature };
+      }
     }
   }
 
-  for (const s of sides) {
-    if (picked.filter(isSide).length >= rules.sideCount) break;
-    const ing = (s.ingredient_name ?? "").toLowerCase();
-    if (!usedIngredients.has(ing)) {
-      picked.push(s);
-      usedIngredients.add(ing);
+  return best;
+}
+
+function findBestAlternateCombo(
+  archetypes: BalanceArchetype[],
+  dishes: DishRow[],
+  rules: ComboRules,
+  taste: TasteProfile,
+  usedDishIds: Set<number>,
+  usedSignatures: Set<string>
+): ScoredArchetypeCombo | null {
+  let best: ScoredArchetypeCombo | null = null;
+
+  for (const archetype of archetypes) {
+    const candidate = findBestComboForArchetype(
+      archetype,
+      dishes,
+      rules,
+      taste,
+      usedDishIds,
+      usedSignatures
+    );
+    if (candidate && (!best || candidate.score > best.score)) {
+      best = candidate;
     }
   }
 
-  // Fill remaining slots allowing ingredient reuse with different prep style
-  if (picked.filter(isGravy).length < rules.gravyCount) {
-    for (const g of gravies) {
-      if (picked.length >= rules.gravyCount + rules.sideCount) break;
-      if (!picked.find((p) => p.id === g.id)) picked.push(g);
-    }
-  }
-  if (picked.filter(isSide).length < rules.sideCount) {
-    for (const s of sides) {
-      if (picked.length >= rules.gravyCount + rules.sideCount) break;
-      if (!picked.find((p) => p.id === s.id)) picked.push(s);
-    }
+  return best;
+}
+
+function scoredComboToBuiltCombo(
+  combo: ScoredArchetypeCombo,
+  rules: ComboRules,
+  category: string,
+  index: number
+): BuiltCombo {
+  const picked = [combo.anchor, ...combo.sides];
+  const parsed = picked.map(parseDishRow);
+  const skipRiceStaple = shouldSkipPlainRiceStaple(combo.anchor);
+  const addRice = category.toLowerCase() !== "breakfast" && !skipRiceStaple;
+  const subComponents = [...parsed.map((d) => d.name)];
+  if (addRice) subComponents.push("Rice");
+
+  return {
+    id: `combo-${Date.now()}-${index}`,
+    name: buildComboName(picked),
+    dishIds: picked.map((d) => d.id),
+    subComponents,
+    dishes: parsed,
+    staple: addRice ? "Rice" : "",
+    rationale: buildBalanceRationale(combo.anchor, combo.sides),
+    source: "rule_engine",
+  };
+}
+
+export function assembleRuleBasedCombos(params: {
+  dishes: DishRow[];
+  rules: ComboRules;
+  taste: TasteProfile;
+  ingredients: string[];
+  category: string;
+  maxCombos: number;
+}): BuiltCombo[] {
+  const { dishes, rules, taste, ingredients, category, maxCombos } = params;
+  const archetypes = getEligibleArchetypes(ingredients);
+  const usedIds = new Set<number>();
+  const usedSignatures = new Set<string>();
+  const combos: BuiltCombo[] = [];
+
+  for (const archetype of archetypes) {
+    if (combos.length >= maxCombos) break;
+
+    const best = findBestComboForArchetype(
+      archetype,
+      dishes,
+      rules,
+      taste,
+      usedIds,
+      usedSignatures
+    );
+    if (!best) continue;
+
+    combos.push(scoredComboToBuiltCombo(best, rules, category, combos.length));
+    usedIds.add(best.anchor.id);
+    best.sides.forEach((d) => usedIds.add(d.id));
+    usedSignatures.add(signatureKey(best.signature));
   }
 
-  return picked.slice(0, rules.gravyCount + rules.sideCount);
+  while (combos.length < maxCombos) {
+    const alternate = findBestAlternateCombo(
+      archetypes,
+      dishes,
+      rules,
+      taste,
+      usedIds,
+      usedSignatures
+    );
+    if (!alternate) break;
+
+    combos.push(scoredComboToBuiltCombo(alternate, rules, category, combos.length));
+    usedIds.add(alternate.anchor.id);
+    alternate.sides.forEach((d) => usedIds.add(d.id));
+    usedSignatures.add(signatureKey(alternate.signature));
+  }
+
+  return combos;
 }
 
 function buildComboName(dishes: DishRow[]): string {
@@ -200,42 +391,32 @@ export async function buildCombosFromCatalog(params: {
     }
   }
 
-  return buildCombosRuleBased(catalogDishes, comboRules, taste, category, maxCombos).slice(0, maxCombos);
+  return buildCombosRuleBased(
+    catalogDishes,
+    comboRules,
+    taste,
+    category,
+    ingredients,
+    maxCombos
+  ).slice(0, maxCombos);
 }
 
-function buildCombosRuleBased(
+export function buildCombosRuleBased(
   catalogDishes: DishRow[],
   rules: ComboRules,
   taste: TasteProfile,
   category: string,
+  ingredients: string[],
   maxCombos: number
 ): BuiltCombo[] {
-  const usedIds = new Set<number>();
-  const combos: BuiltCombo[] = [];
-
-  for (let variant = 0; variant < maxCombos; variant++) {
-    const picked = pickDishesForCombo(catalogDishes, rules, taste, usedIds, variant);
-    picked.forEach((d) => usedIds.add(d.id));
-
-    if (picked.length === 0) continue;
-
-    const parsed = picked.map(parseDishRow);
-    const addRice = category.toLowerCase() !== "breakfast";
-    const subComponents = [...parsed.map((d) => d.name)];
-    if (addRice) subComponents.push("Rice");
-    combos.push({
-      id: `combo-${Date.now()}-${variant}`,
-      name: buildComboName(picked),
-      dishIds: picked.map((d) => d.id),
-      subComponents,
-      dishes: parsed,
-      staple: addRice ? "Rice" : "",
-      rationale: `Balanced ${rules.gravyCount} gravy + ${rules.sideCount} sides from your ingredient catalog.`,
-      source: "rule_engine",
-    });
-  }
-
-  return combos;
+  return assembleRuleBasedCombos({
+    dishes: catalogDishes,
+    rules,
+    taste,
+    ingredients,
+    category,
+    maxCombos,
+  });
 }
 
 async function buildCombosWithGemini(params: {
