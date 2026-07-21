@@ -12,6 +12,9 @@ import {
   getEligibleArchetypes,
   buildBalanceRationale,
   shouldSkipPlainRiceStaple,
+  matchesArchetypeESide,
+  isSameProteinDrySide,
+  sharesProteinIngredient,
 } from "../comboBalance";
 
 function dish(partial: Partial<DishRow> & Pick<DishRow, "id" | "name">): DishRow {
@@ -300,6 +303,59 @@ describe("acceptance 6: archetype E is protein-gated", () => {
   it("pickedIngredientsIncludeProtein detects catalog protein entries", () => {
     expect(pickedIngredientsIncludeProtein(["Cabbage"])).toBe(false);
     expect(pickedIngredientsIncludeProtein(["Fish", "meen"])).toBe(true);
+  });
+});
+
+describe("acceptance 6b: archetype E same-protein pairing", () => {
+  const chickenCurry = dish({
+    id: 1,
+    name: "Chicken Curry",
+    ingredient_name: "Chicken",
+    spice_level: "medium",
+    consistency: "liquid",
+    dish_group: "Gravy",
+  });
+  const chicken65 = dish({
+    id: 2,
+    name: "Chicken 65",
+    ingredient_name: "Chicken",
+    spice_level: "spicy",
+    consistency: "crisp",
+    dish_group: "Side",
+  });
+  const fishFry = dish({
+    id: 3,
+    name: "Meen Varuval",
+    ingredient_name: "Fish",
+    spice_level: "spicy",
+    consistency: "dry",
+    dish_group: "Side",
+  });
+  const mildPotato = dish({
+    id: 4,
+    name: "Potato Poriyal",
+    ingredient_name: "Potato",
+    spice_level: "mild",
+    consistency: "dry",
+    dish_group: "Side",
+  });
+
+  it("requires fry side to share anchor protein ingredient", () => {
+    expect(isSameProteinDrySide(chicken65, chickenCurry)).toBe(true);
+    expect(isSameProteinDrySide(fishFry, chickenCurry)).toBe(false);
+    expect(sharesProteinIngredient(chicken65, chickenCurry)).toBe(true);
+    expect(sharesProteinIngredient(fishFry, chickenCurry)).toBe(false);
+  });
+
+  it("rejects fish fry as slot 0 for chicken curry anchor", () => {
+    expect(matchesArchetypeESide(fishFry, 0, chickenCurry, 2)).toBe(false);
+    expect(matchesArchetypeESide(chicken65, 0, chickenCurry, 2)).toBe(true);
+  });
+
+  it("slot 1 is mild non-protein veg when sideCount >= 2", () => {
+    expect(matchesArchetypeESide(mildPotato, 1, chickenCurry, 2)).toBe(true);
+    expect(matchesArchetypeESide(fishFry, 1, chickenCurry, 2)).toBe(false);
+    expect(matchesArchetypeESide(chicken65, 1, chickenCurry, 2)).toBe(false);
   });
 });
 

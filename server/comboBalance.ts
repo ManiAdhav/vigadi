@@ -48,10 +48,14 @@ function dishText(dish: DishRow): string {
   return `${dish.dish_category ?? ""} ${dish.name}`.toLowerCase();
 }
 
-function ingredientKey(dish: DishRow): string {
+export function getIngredientKey(dish: DishRow): string {
   const name = dish.ingredient_name ?? "";
   if (!name) return "";
   return normalizeAlias(resolveToCanonical(name));
+}
+
+function ingredientKey(dish: DishRow): string {
+  return getIngredientKey(dish);
 }
 
 export function spiceScore(dish: DishRow): number {
@@ -161,6 +165,37 @@ function isSemiLiquidSide(dish: DishRow): boolean {
 
 function isSpicyDrySide(dish: DishRow): boolean {
   return isSpicyBand(dish) && isDrySide(dish);
+}
+
+export function sharesProteinIngredient(a: DishRow, b: DishRow): boolean {
+  const keyA = ingredientKey(a);
+  const keyB = ingredientKey(b);
+  if (!keyA || !keyB || keyA !== keyB) return false;
+  return isProteinDish(a) && isProteinDish(b);
+}
+
+export function isMildVegSide(dish: DishRow): boolean {
+  return isMildBand(dish) && !isProteinDish(dish);
+}
+
+export function isSameProteinDrySide(dish: DishRow, anchor: DishRow): boolean {
+  return isProteinDish(dish) && isDrySide(dish) && sharesProteinIngredient(dish, anchor);
+}
+
+/** Archetype E: slot 0 = same-protein dry/crisp fry; further slots = mild veg when sideCount allows. */
+export function matchesArchetypeESide(
+  dish: DishRow,
+  slotIndex: number,
+  anchor: DishRow,
+  sideCount: number
+): boolean {
+  if (slotIndex === 0) {
+    return isSameProteinDrySide(dish, anchor);
+  }
+  if (sideCount >= 2) {
+    return isMildVegSide(dish);
+  }
+  return false;
 }
 
 export const ARCHETYPES: BalanceArchetype[] = [

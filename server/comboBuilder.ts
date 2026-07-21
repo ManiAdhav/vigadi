@@ -14,6 +14,7 @@ import {
   anchorSignature,
   buildBalanceRationale,
   getEligibleArchetypes,
+  matchesArchetypeESide,
   scoreComboBalance,
   shouldSkipPlainRiceStaple,
   type BalanceArchetype,
@@ -172,8 +173,12 @@ function sideMatchesSlot(
   dish: DishRow,
   archetype: BalanceArchetype,
   slotIndex: number,
-  sideCount: number
+  sideCount: number,
+  anchor: DishRow
 ): boolean {
+  if (archetype.id === "E") {
+    return matchesArchetypeESide(dish, slotIndex, anchor, sideCount);
+  }
   if (archetype.id === "D" && slotIndex > 0) {
     return isSide(dish);
   }
@@ -196,7 +201,7 @@ function pickSideCombinations(
       return;
     }
     for (const candidate of available) {
-      if (!sideMatchesSlot(candidate, archetype, slotIndex, sideCount)) continue;
+      if (!sideMatchesSlot(candidate, archetype, slotIndex, sideCount, anchor)) continue;
       const comboDishes = [anchor, ...picked, candidate];
       if (!isComboIngredientValid(comboDishes)) continue;
       const remaining = available.filter((d) => d.id !== candidate.id);

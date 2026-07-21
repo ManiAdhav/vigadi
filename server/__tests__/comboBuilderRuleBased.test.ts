@@ -216,6 +216,29 @@ describe("assembleRuleBasedCombos", () => {
     expect(combos[0].dishIds).toContain(catalog.chicken65.id);
   });
 
+  it("does not pair chicken curry with fish fry under archetype E", () => {
+    const combos = assembleRuleBasedCombos({
+      dishes: [
+        catalog.chickenCurry,
+        catalog.spicyFishFry,
+        catalog.mildPotato,
+        catalog.mildCabbage,
+      ],
+      rules: defaultRules,
+      taste: emptyTaste,
+      ingredients: ["Chicken", "Fish", "Potato", "Cabbage"],
+      category: "lunch",
+      maxCombos: 5,
+    });
+
+    const badPair = combos.find(
+      (c) =>
+        c.dishIds.includes(catalog.chickenCurry.id) &&
+        c.dishIds.includes(catalog.spicyFishFry.id)
+    );
+    expect(badPair).toBeUndefined();
+  });
+
   it("includes fish curry + fish fry in same combo when fish picked", () => {
     const combos = assembleRuleBasedCombos({
       dishes: [catalog.spicyFishCurry, catalog.spicyFishFry, catalog.mildCabbage],
