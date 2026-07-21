@@ -216,6 +216,51 @@ describe("assembleRuleBasedCombos", () => {
     expect(combos[0].dishIds).toContain(catalog.chicken65.id);
   });
 
+  it("includes fish curry + fish fry in same combo when fish picked", () => {
+    const combos = assembleRuleBasedCombos({
+      dishes: [catalog.spicyFishCurry, catalog.spicyFishFry, catalog.mildCabbage],
+      rules: defaultRules,
+      taste: emptyTaste,
+      ingredients: ["Fish", "Cabbage"],
+      category: "lunch",
+      maxCombos: 3,
+    });
+
+    expect(combos.length).toBeGreaterThan(0);
+    const fishPair = combos.find(
+      (c) =>
+        c.dishIds.includes(catalog.spicyFishCurry.id) &&
+        c.dishIds.includes(catalog.spicyFishFry.id)
+    );
+    expect(fishPair).toBeDefined();
+  });
+
+  it("fills extra gravies when gravyCount > 1", () => {
+    const rules = parseComboRules("2 gravy + 2 sides");
+    const combos = assembleRuleBasedCombos({
+      dishes: [
+        catalog.spicyFishCurry,
+        catalog.mediumSambar,
+        catalog.mildCabbage,
+        catalog.mildBeans,
+      ],
+      rules,
+      taste: emptyTaste,
+      ingredients: ["Fish", "Cabbage"],
+      category: "lunch",
+      maxCombos: 1,
+    });
+
+    expect(combos.length).toBe(1);
+    const gravyIds = combos[0].dishIds.filter((id) => {
+      const d = allDishes.find((row) => row.id === id)!;
+      const group = (d.dish_group ?? "").toLowerCase();
+      return group === "gravy" || group === "curry";
+    });
+    expect(gravyIds.length).toBeGreaterThanOrEqual(2);
+    expect(combos[0].dishIds.length).toBeLessThanOrEqual(rules.gravyCount + rules.sideCount);
+  });
+
   it("skips plain rice staple when anchor is Rice group", () => {
     const combos = assembleRuleBasedCombos({
       dishes: [catalog.lemonRice, catalog.kootuSide, catalog.mildCabbage],

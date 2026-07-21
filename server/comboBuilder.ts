@@ -118,10 +118,17 @@ function tasteScore(dish: DishRow, taste: TasteProfile): number {
   return scoreDishForTaste(dish, taste, dish.ingredient_name ?? "");
 }
 
-function comboTotalScore(anchor: DishRow, sides: DishRow[], taste: TasteProfile): number {
+function comboTotalScore(
+  anchor: DishRow,
+  extraGravies: DishRow[],
+  sides: DishRow[],
+  taste: TasteProfile
+): number {
   const tasteTotal =
-    tasteScore(anchor, taste) + sides.reduce((sum, side) => sum + tasteScore(side, taste), 0);
-  return tasteTotal + scoreComboBalance(anchor, sides);
+    tasteScore(anchor, taste) +
+    extraGravies.reduce((sum, g) => sum + tasteScore(g, taste), 0) +
+    sides.reduce((sum, side) => sum + tasteScore(side, taste), 0);
+  return tasteTotal + scoreComboBalance(anchor, [...extraGravies, ...sides]);
 }
 
 function isComboIngredientValid(dishes: DishRow[]): boolean {
@@ -192,8 +199,45 @@ function pickSideCombinations(
   return results;
 }
 
+/** When rules.gravyCount > 1, fill additional gravy/curry slots after the archetype anchor. */
+function pickExtraGravies(
+  anchor: DishRow,
+  sides: DishRow[],
+  gravyCandidates: DishRow[],
+  count: number,
+  taste: TasteProfile
+): DishRow[][] {
+  if (count <= 0) return [[]];
+
+  const sorted = [...gravyCandidates]
+    .filter((d) => d.id !== anchor.id && isGravy(d))
+    .sort((a, b) => tasteScore(b, taste) - tasteScore(a, taste));
+
+  const results: DishRow[][] = [];
+
+  function backtrack(remaining: number, picked: DishRow[], available: DishRow[]): void {
+    if (remaining === 0) {
+      results.push([...picked]);
+      return;
+    }
+    for (const candidate of available) {
+      const comboDishes = [anchor, ...picked, candidate, ...sides];
+      if (!isComboIngredientValid(comboDishes)) continue;
+      backtrack(
+        remaining - 1,
+        [...picked, candidate],
+        available.filter((d) => d.id !== candidate.id)
+      );
+    }
+  }
+
+  backtrack(count, [], sorted);
+  return results.length > 0 ? results : [[]];
+}
+
 interface ScoredArchetypeCombo {
   anchor: DishRow;
+  extraGravies: DishRow[];
   sides: DishRow[];
   archetypeId: BalanceArchetype["id"];
   score: number;
@@ -219,8 +263,11 @@ function findBestComboForArchetype(
     .slice(0, 20);
 
   let best: ScoredArchetypeCombo | null = null;
+  const gravyPool = available.filter((d) => isGravy(d));
 
   for (const anchor of anchorCandidates) {
+    const slotsForAnchor =
+      rules.gravyCount > 1 && isGravy(anchor) ? rules.gravyCount - 1 : 0;
     const sideCombos = pickSideCombinations(
       anchor,
       sideCandidates.filter((d) => d.id !== anchor.id),
@@ -229,13 +276,36 @@ function findBestComboForArchetype(
       taste
     );
     for (const sides of sideCombos) {
-      const signature = archetype.signature(anchor);
-      const key = signatureKey(signature);
-      if (usedSignatures.has(key)) continue;
+      const extraGravyCombos =
+        slotsForAnchor > 0
+          ? pickExtraGravies(
+              anchor,
+              sides,
+              gravyPool.filter((d) => d.id !== anchor.id),
+              slotsForAnchor,
+              taste
+            )
+          : [[]];
 
-      const score = comboTotalScore(anchor, sides, taste);
-      if (!best || score > best.score) {
-        best = { anchor, sides, archetypeId: archetype.id, score, signature };
+      for (const extraGravies of extraGravyCombos) {
+        const totalDishes = 1 + extraGravies.length + sides.length;
+        if (totalDishes > rules.gravyCount + rules.sideCount) continue;
+
+        const signature = archetype.signature(anchor);
+        const key = signatureKey(signature);
+        if (usedSignatures.has(key)) continue;
+
+        const score = comboTotalScore(anchor, extraGravies, sides, taste);
+        if (!best || score > best.score) {
+          best = {
+            anchor,
+            extraGravies,
+            sides,
+            archetypeId: archetype.id,
+            score,
+            signature,
+          };
+        }
       }
     }
   }
@@ -276,7 +346,7 @@ function scoredComboToBuiltCombo(
   category: string,
   index: number
 ): BuiltCombo {
-  const picked = [combo.anchor, ...combo.sides];
+  const picked = [combo.anchor, ...combo.extraGravies, ...combo.sides];
   const parsed = picked.map(parseDishRow);
   const skipRiceStaple = shouldSkipPlainRiceStaple(combo.anchor);
   const addRice = category.toLowerCase() !== "breakfast" && !skipRiceStaple;
@@ -290,7 +360,7 @@ function scoredComboToBuiltCombo(
     subComponents,
     dishes: parsed,
     staple: addRice ? "Rice" : "",
-    rationale: buildBalanceRationale(combo.anchor, combo.sides),
+    rationale: buildBalanceRationale(combo.anchor, [...combo.extraGravies, ...combo.sides]),
     source: "rule_engine",
   };
 }
@@ -303,6 +373,8 @@ export function assembleRuleBasedCombos(params: {
   category: string;
   maxCombos: number;
 }): BuiltCombo[] {
+  // rules.gravyCount bounds gravy slots: 1 anchor + (gravyCount-1) extra gravies when >1;
+  // total dishes capped at gravyCount + sideCount. gravyCount===1 keeps single-anchor plates.
   const { dishes, rules, taste, ingredients, category, maxCombos } = params;
   const archetypes = getEligibleArchetypes(ingredients);
   const usedIds = new Set<number>();
@@ -324,6 +396,7 @@ export function assembleRuleBasedCombos(params: {
 
     combos.push(scoredComboToBuiltCombo(best, rules, category, combos.length));
     usedIds.add(best.anchor.id);
+    best.extraGravies.forEach((d) => usedIds.add(d.id));
     best.sides.forEach((d) => usedIds.add(d.id));
     usedSignatures.add(signatureKey(best.signature));
   }
@@ -341,6 +414,7 @@ export function assembleRuleBasedCombos(params: {
 
     combos.push(scoredComboToBuiltCombo(alternate, rules, category, combos.length));
     usedIds.add(alternate.anchor.id);
+    alternate.extraGravies.forEach((d) => usedIds.add(d.id));
     alternate.sides.forEach((d) => usedIds.add(d.id));
     usedSignatures.add(signatureKey(alternate.signature));
   }
