@@ -22,6 +22,15 @@ import {
 
 export const MIN_COMBOS = 3;
 export const MAX_COMBOS = 5;
+const GEMINI_BALANCE_THRESHOLD = 0;
+
+export interface GeminiComboDraft {
+  name?: string;
+  dishIds: number[];
+  subComponents?: string[];
+  staple?: string;
+  rationale?: string;
+}
 
 export interface BuiltCombo {
   id: string;
@@ -365,6 +374,110 @@ function scoredComboToBuiltCombo(
   };
 }
 
+export function splitGeminiComboAnchorAndSides(
+  dishes: DishRow[]
+): { anchor: DishRow; sides: DishRow[] } | null {
+  const anchorIndex = dishes.findIndex((d) => isGravy(d) || isRiceAnchor(d));
+  if (anchorIndex < 0) return null;
+  const anchor = dishes[anchorIndex];
+  const sides = dishes.filter((_, i) => i !== anchorIndex);
+  return { anchor, sides };
+}
+
+function buildGeminiComboOutput(
+  draft: GeminiComboDraft,
+  dishes: DishRow[],
+  category: string,
+  index: number
+): BuiltCombo {
+  const parsed = dishes.map(parseDishRow);
+  const split = splitGeminiComboAnchorAndSides(dishes);
+  const skipRiceStaple = split ? shouldSkipPlainRiceStaple(split.anchor) : false;
+  const addRice = category.toLowerCase() !== "breakfast" && !skipRiceStaple;
+
+  let subComponents = draft.subComponents ?? parsed.map((d) => d.name);
+  if (skipRiceStaple || !addRice) {
+    subComponents = subComponents.filter((c) => c !== "Rice");
+  } else if (!subComponents.includes("Rice")) {
+    subComponents = [...subComponents, "Rice"];
+  }
+
+  return {
+    id: `combo-${Date.now()}-${index}`,
+    name: draft.name || buildComboName(dishes),
+    dishIds: dishes.map((d) => d.id),
+    subComponents,
+    dishes: parsed,
+    staple: addRice ? "Rice" : "",
+    rationale:
+      draft.rationale ||
+      (split ? buildBalanceRationale(split.anchor, split.sides) : ""),
+    source: "gemini",
+  };
+}
+
+export function validateAndRepairGeminiCombos(params: {
+  geminiCombos: GeminiComboDraft[];
+  catalogDishes: DishRow[];
+  rules: ComboRules;
+  taste: TasteProfile;
+  ingredients: string[];
+  category: string;
+  maxCombos: number;
+}): BuiltCombo[] {
+  const {
+    geminiCombos,
+    catalogDishes,
+    rules,
+    taste,
+    ingredients,
+    category,
+    maxCombos,
+  } = params;
+  const catalogMap = new Map(catalogDishes.map((d) => [d.id, d]));
+  const kept: BuiltCombo[] = [];
+  const usedIds = new Set<number>();
+  const usedSignatures = new Set<string>();
+
+  for (const draft of geminiCombos) {
+    if (kept.length >= maxCombos) break;
+
+    const dishes = (draft.dishIds ?? [])
+      .map((id) => catalogMap.get(id))
+      .filter(Boolean) as DishRow[];
+    if (dishes.length === 0) continue;
+    if (!isComboIngredientValid(dishes)) continue;
+
+    const split = splitGeminiComboAnchorAndSides(dishes);
+    if (!split) continue;
+
+    const balanceScore = scoreComboBalance(split.anchor, split.sides);
+    const key = signatureKey(anchorSignature(split.anchor));
+    if (balanceScore < GEMINI_BALANCE_THRESHOLD) continue;
+    if (usedSignatures.has(key)) continue;
+
+    kept.push(buildGeminiComboOutput(draft, dishes, category, kept.length));
+    dishes.forEach((d) => usedIds.add(d.id));
+    usedSignatures.add(key);
+  }
+
+  if (kept.length < maxCombos) {
+    const replacements = assembleRuleBasedCombos({
+      dishes: catalogDishes,
+      rules,
+      taste,
+      ingredients,
+      category,
+      maxCombos: maxCombos - kept.length,
+      initialUsedIds: usedIds,
+      initialUsedSignatures: usedSignatures,
+    });
+    kept.push(...replacements);
+  }
+
+  return kept.slice(0, maxCombos);
+}
+
 export function assembleRuleBasedCombos(params: {
   dishes: DishRow[];
   rules: ComboRules;
@@ -372,13 +485,15 @@ export function assembleRuleBasedCombos(params: {
   ingredients: string[];
   category: string;
   maxCombos: number;
+  initialUsedIds?: Set<number>;
+  initialUsedSignatures?: Set<string>;
 }): BuiltCombo[] {
   // rules.gravyCount bounds gravy slots: 1 anchor + (gravyCount-1) extra gravies when >1;
   // total dishes capped at gravyCount + sideCount. gravyCount===1 keeps single-anchor plates.
   const { dishes, rules, taste, ingredients, category, maxCombos } = params;
   const archetypes = getEligibleArchetypes(ingredients);
-  const usedIds = new Set<number>();
-  const usedSignatures = new Set<string>();
+  const usedIds = new Set(params.initialUsedIds ?? []);
+  const usedSignatures = new Set(params.initialUsedSignatures ?? []);
   const combos: BuiltCombo[] = [];
 
   for (const archetype of archetypes) {
@@ -508,10 +623,13 @@ async function buildCombosWithGemini(params: {
     name: d.name,
     type: d.dish_category ?? d.dish_type,
     spice: d.spice_level,
+    consistency: d.consistency,
+    dish_group: d.dish_group,
     youtube: d.youtube_url,
   }));
 
   const tasteHints = JSON.stringify(params.taste, null, 2);
+  const isBreakfast = params.category.toLowerCase() === "breakfast";
 
   const prompt = `You are Vigadi's combo assembly engine.
 
@@ -527,8 +645,14 @@ Build EXACTLY ${params.maxCombos} different full meal combos. Each combo must:
 - Follow the combo rules precisely
 - Use dishes ONLY from the catalog above (by id)
 - Use different dishes between combos where possible
-- Include Rice as staple
+${isBreakfast ? "- Do NOT add Rice staple (breakfast slot)" : "- Include Rice as staple unless the anchor dish is dish_group Rice (variety rice IS the staple — do not add plain Rice again)"}
 - Respect user taste preferences (avoid disliked prep styles, prefer liked ones)
+
+Balance rules (mandatory):
+- B1 spice see-saw: spicy liquid gravies need mild/medium sides; mild anchors need at least one spicy side
+- B2 wetness see-saw: crisp counts as dry; liquid/semi-liquid anchors need at least one dry/crisp side (prefer crisp for liquid anchors)
+- B3 no repeated main ingredient across dishes except same-protein pairs (e.g. fish curry + fish fry OK; brinjal curry + brinjal poriyal NOT OK)
+- Produce varied archetypes: each combo's anchor must have a unique (consistency band + spice band) pair across all ${params.maxCombos} combos
 
 Return JSON:
 {
@@ -550,21 +674,16 @@ Return JSON:
   });
 
   const parsed = cleanAndParseJson(response.text || '{"combos":[]}');
-  const catalogMap = new Map(params.dishes.map((d) => [d.id, d]));
+  const geminiCombos: GeminiComboDraft[] = (parsed?.combos ?? []).slice(0, params.maxCombos);
 
-  return (parsed?.combos ?? []).slice(0, params.maxCombos).map((c: any, i: number) => {
-    const dishIds: number[] = c.dishIds ?? [];
-    const dishes = dishIds.map((id) => catalogMap.get(id)).filter(Boolean) as DishRow[];
-    return {
-      id: `combo-${Date.now()}-${i}`,
-      name: c.name || buildComboName(dishes),
-      dishIds,
-      subComponents: c.subComponents ?? [...dishes.map((d) => d.name), "Rice"],
-      dishes: dishes.map(parseDishRow),
-      staple: c.staple || "Rice",
-      rationale: c.rationale || "",
-      source: "gemini" as const,
-    };
+  return validateAndRepairGeminiCombos({
+    geminiCombos,
+    catalogDishes: params.dishes,
+    rules: params.rules,
+    taste: params.taste,
+    ingredients: params.ingredients,
+    category: params.category,
+    maxCombos: params.maxCombos,
   });
 }
 
