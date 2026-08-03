@@ -1,9 +1,19 @@
 import express from "express";
+import cookieParser from "cookie-parser";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { runMigrations } from "./server/db/migrate";
+import { SESSION_COOKIE, validateCredentials } from "./server/auth";
+import {
+  AccountsUnavailableError,
+  accountForSession,
+  authenticate,
+  createAccount,
+  endSession,
+  startSession,
+} from "./server/db/accounts";
 import {
   ensureUserProfile,
   getDishesGroupedByIngredient,
@@ -120,6 +130,7 @@ function cleanAndParseJson(text: string): any {
 // Set up bodies parsing limits to handle base64 image uploads smoothly
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
+app.use(cookieParser());
 
 // Predefined recipes & meal combos mapping Emma's design
 const INITIAL_MEALS: any[] = [
@@ -1083,6 +1094,66 @@ app.post("/api/templates/:userId/:templateId/duplicate", async (req, res) => {
   const uid = req.params.userId || "default-user";
   const templates = await duplicateMealTemplate(uid, req.params.templateId);
   res.json({ templates });
+});
+
+// --- Accounts (optional: guest mode keeps working without one) ---
+
+function setSessionCookie(res: express.Response, token: string, expiresAt: Date) {
+  res.cookie(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    expires: expiresAt,
+    path: "/",
+  });
+}
+
+app.post("/api/auth/signup", async (req, res) => {
+  const { username, password, email, guestId } = req.body ?? {};
+  const problem = validateCredentials(String(username ?? ""), String(password ?? ""));
+  if (problem) return res.status(400).json({ error: problem });
+  try {
+    const account = await createAccount({ username, password, email, guestId });
+    const { token, expiresAt } = await startSession(account.id);
+    setSessionCookie(res, token, expiresAt);
+    res.json({ user: account });
+  } catch (error: any) {
+    if (error instanceof AccountsUnavailableError) {
+      return res.status(503).json({ error: error.message });
+    }
+    const taken = /already taken/i.test(error?.message ?? "");
+    console.error("Signup failed:", error);
+    res.status(taken ? 409 : 500).json({ error: error?.message || "Could not create account." });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  const { username, password } = req.body ?? {};
+  try {
+    const account = await authenticate(String(username ?? ""), String(password ?? ""));
+    // Same message either way, so a wrong guess never reveals which usernames exist.
+    if (!account) return res.status(401).json({ error: "Wrong username or password" });
+    const { token, expiresAt } = await startSession(account.id);
+    setSessionCookie(res, token, expiresAt);
+    res.json({ user: account });
+  } catch (error: any) {
+    if (error instanceof AccountsUnavailableError) {
+      return res.status(503).json({ error: error.message });
+    }
+    console.error("Login failed:", error);
+    res.status(500).json({ error: "Could not sign in." });
+  }
+});
+
+app.post("/api/auth/logout", async (req, res) => {
+  await endSession(req.cookies?.[SESSION_COOKIE]);
+  res.clearCookie(SESSION_COOKIE, { path: "/" });
+  res.json({ ok: true });
+});
+
+app.get("/api/auth/me", async (req, res) => {
+  const account = await accountForSession(req.cookies?.[SESSION_COOKIE]);
+  res.json({ user: account });
 });
 
 // --- Food plates (personal meal plan) ---

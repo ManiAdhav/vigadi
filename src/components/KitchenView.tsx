@@ -10,6 +10,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { BuiltComboOption, Meal, MealTemplate } from "../types";
+import { useUser } from "../useUser";
 import {
   formatTemplatePreview,
   inferDefaultMealSlot,
@@ -28,23 +29,10 @@ interface KitchenViewProps {
   onSelectCreatedMeals: (meals: Meal[]) => void;
 }
 
-const USER_ID_KEY = "vigadi_user_id";
-const USERNAME_KEY = "vigadi_username";
-
-function getUserId() {
-  let id = localStorage.getItem(USER_ID_KEY);
-  if (!id) {
-    id = `user-${Date.now()}`;
-    localStorage.setItem(USER_ID_KEY, id);
-  }
-  return id;
-}
-
-function getUsername() {
-  return localStorage.getItem(USERNAME_KEY) || "Guest";
-}
-
 export default function KitchenView({ onSelectMeal, onSelectCreatedMeals }: KitchenViewProps) {
+  const { account, userId } = useUser();
+  const getUserId = () => userId;
+  const getUsername = () => account?.username ?? "Guest";
   const [tags, setTags] = useState<string[]>([]);
 
   const [templates, setTemplates] = useState<MealTemplate[]>([]);

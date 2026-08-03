@@ -22,6 +22,17 @@ export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] 
 
 export const ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 
+/** Pre-filled into a new plate so the name is never the reason a save is blocked. */
+export const DEFAULT_FOOD_PLATE_NAME = "Balanced Lunch";
+
+/** Returns the one thing stopping this plate from saving, or null when it is ready. */
+export function validateFoodPlate(plate: FoodPlate): string | null {
+  if (!plate.name.trim()) return "Give this plan a name";
+  if (plate.slots.length === 0) return "Add at least one dish";
+  if (plate.weekdays.length === 0) return "Pick at least one day";
+  return null;
+}
+
 export function createFoodPlateId(): string {
   return `plate-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }

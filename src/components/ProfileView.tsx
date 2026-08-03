@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Meal, MealTemplate } from "../types";
 import TemplateBuilder from "./TemplateBuilder";
 import FoodPlateBuilder from "./FoodPlateBuilder";
+import AccountPanel from "./AccountPanel";
+import { useUser } from "../useUser";
 import { formatTemplatePreview, normalizeTemplate, templateMealsLabel } from "../../shared/mealTemplates";
 import { FoodPlate, foodPlateSummary } from "../../shared/foodPlates";
 
@@ -10,18 +12,9 @@ interface ProfileViewProps {
   onSelectMealById: (id: string) => void;
 }
 
-const USER_ID_KEY = "vigadi_user_id";
-
-function getUserId() {
-  let id = localStorage.getItem(USER_ID_KEY);
-  if (!id) {
-    id = `user-${Date.now()}`;
-    localStorage.setItem(USER_ID_KEY, id);
-  }
-  return id;
-}
-
 export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
+  const { account, userId, signup, login, logout } = useUser();
+  const getUserId = () => userId;
   // Load location and custom macronutrient ratio from storage
   const [userLocation, setUserLocation] = useState(() => {
     return localStorage.getItem("vigadi_user_location") || "Tamil Nadu, Chennai";
@@ -47,7 +40,7 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [userId]);
 
   const loadFoodPlates = useCallback(async () => {
     try {
@@ -58,7 +51,7 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     loadTemplates();
@@ -223,6 +216,9 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
         </div>
       </div>
 
+      {/* Account: optional — guest mode keeps working without one */}
+      <AccountPanel account={account} onSignup={signup} onLogin={login} onLogout={logout} />
+
       {/* Cooking streak card matching screenshot */}
       <div className="bg-sage text-cream p-5 rounded-[22px] shadow-warm space-y-4">
         <div className="flex justify-between items-center">
@@ -333,8 +329,7 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
                   const cityCode =
                     loc.split(",").pop()?.trim().toLowerCase().replace(/\s+/g, "-") || null;
                   try {
-                    const userId = localStorage.getItem("vigadi_user_id") || "default-user";
-                    await fetch(`/api/profile/${userId}`, {
+                    await fetch(`/api/profile/${getUserId()}`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ cityCode }),

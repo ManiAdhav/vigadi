@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   createFoodPlateId,
+  DEFAULT_FOOD_PLATE_NAME,
   formatWeekdays,
   foodPlateToTemplate,
   resolveActiveFoodPlate,
+  validateFoodPlate,
   type FoodPlate,
 } from "../../shared/foodPlates";
 
@@ -67,5 +69,24 @@ describe("createFoodPlateId", () => {
   it("generates unique ids", () => {
     expect(createFoodPlateId()).toMatch(/^plate-/);
     expect(createFoodPlateId()).not.toBe(createFoodPlateId());
+  });
+});
+
+describe("validateFoodPlate", () => {
+  it("accepts a plate whose name was never edited", () => {
+    // The builder pre-fills the name, so an untouched plate must still save.
+    expect(validateFoodPlate({ ...balancedLunch, name: DEFAULT_FOOD_PLATE_NAME })).toBeNull();
+  });
+
+  it("names the missing piece instead of failing silently", () => {
+    expect(validateFoodPlate({ ...balancedLunch, name: "   " })).toBe("Give this plan a name");
+    expect(validateFoodPlate({ ...balancedLunch, slots: [] })).toBe("Add at least one dish");
+    expect(validateFoodPlate({ ...balancedLunch, weekdays: [] })).toBe("Pick at least one day");
+  });
+
+  it("reports the name first when several pieces are missing", () => {
+    expect(validateFoodPlate({ ...balancedLunch, name: "", slots: [], weekdays: [] })).toBe(
+      "Give this plan a name"
+    );
   });
 });

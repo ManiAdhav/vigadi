@@ -3,10 +3,12 @@ import DishSlotPicker from "./DishSlotPicker";
 import { X, Plus, Copy, Trash2, Sun, UtensilsCrossed, Moon } from "lucide-react";
 import {
   createFoodPlateId,
+  DEFAULT_FOOD_PLATE_NAME,
   formatFoodPlatePreview,
   formatWeekdays,
   FoodPlate,
   prepareFoodPlateForSave,
+  validateFoodPlate,
   WEEKDAY_LABELS,
 } from "../../shared/foodPlates";
 import {
@@ -33,7 +35,7 @@ const MEAL_OPTIONS: { id: MealSlot; label: string; Icon: typeof Sun }[] = [
 function blankPlate(): FoodPlate {
   return {
     id: createFoodPlateId(),
-    name: "",
+    name: DEFAULT_FOOD_PLATE_NAME,
     meal_slot: "lunch",
     slots: [
       { category: "rice", dish_type: "plain_rice", count: 1 },
@@ -110,7 +112,13 @@ export default function FoodPlateBuilder({
   };
 
   const handleSave = async () => {
-    if (!draft.name.trim() || draft.slots.length === 0 || draft.weekdays.length === 0 || isSaving) return;
+    if (isSaving) return;
+    // Never fail silently: say which piece is missing rather than sitting there disabled.
+    const problem = validateFoodPlate(draft);
+    if (problem) {
+      setSaveError(problem);
+      return;
+    }
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -228,7 +236,10 @@ export default function FoodPlateBuilder({
           <label className="text-[10px] font-mono uppercase tracking-wider text-espresso/50 font-bold">Name</label>
           <input
             value={draft.name}
-            onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+            onChange={(e) => {
+              setSaveError(null);
+              setDraft((prev) => ({ ...prev, name: e.target.value }));
+            }}
             placeholder="Balanced Lunch"
             className="w-full bg-[#F1F3ED] border border-matcha/30 px-3 py-2.5 rounded-xl text-xs font-semibold text-espresso"
           />
@@ -354,7 +365,7 @@ export default function FoodPlateBuilder({
           <button
             type="button"
             onClick={handleSave}
-            disabled={!draft.name.trim() || draft.slots.length === 0 || draft.weekdays.length === 0 || isSaving}
+            disabled={isSaving}
             className="flex-1 py-3 rounded-xl bg-[#2E9D70] text-white text-xs font-bold cursor-pointer disabled:opacity-40"
           >
             {isSaving ? "Saving…" : "Save plate"}

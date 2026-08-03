@@ -2,6 +2,19 @@ import fs from "fs";
 import path from "path";
 import { query } from "./pool";
 
+/**
+ * Migration ids are filenames without the .sql extension, applied in filename
+ * order. Reading the directory means a new migration file is picked up on its
+ * own — nothing here needs editing when one is added.
+ */
+function migrationIds(dir: string): string[] {
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .map((f) => f.replace(/\.sql$/, ""))
+    .sort();
+}
+
 export async function runMigrations(): Promise<void> {
   await query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -13,45 +26,12 @@ export async function runMigrations(): Promise<void> {
   const applied = await query<{ id: string }>(`SELECT id FROM schema_migrations`);
   const appliedIds = new Set(applied.rows.map((r) => r.id));
 
-  if (!appliedIds.has("001_initial")) {
-    const sqlPath = path.join(process.cwd(), "migrations/001_initial.sql");
-    const sql = fs.readFileSync(sqlPath, "utf8");
+  const dir = path.join(process.cwd(), "migrations");
+  for (const id of migrationIds(dir)) {
+    if (appliedIds.has(id)) continue;
+    const sql = fs.readFileSync(path.join(dir, `${id}.sql`), "utf8");
     await query(sql);
-    await query(`INSERT INTO schema_migrations (id) VALUES ($1)`, ["001_initial"]);
-    console.log("Migration 001 applied.");
-  }
-
-  if (!appliedIds.has("002_ingredient_aliases")) {
-    const sqlPath = path.join(process.cwd(), "migrations/002_ingredient_aliases.sql");
-    const sql = fs.readFileSync(sqlPath, "utf8");
-    await query(sql);
-    await query(`INSERT INTO schema_migrations (id) VALUES ($1)`, ["002_ingredient_aliases"]);
-    console.log("Migration 002 applied.");
-  }
-
-  if (!appliedIds.has("003_meal_templates")) {
-    const sqlPath = path.join(process.cwd(), "migrations/003_meal_templates.sql");
-    const sql = fs.readFileSync(sqlPath, "utf8");
-    await query(sql);
-    await query(`INSERT INTO schema_migrations (id) VALUES ($1)`, ["003_meal_templates"]);
-    console.log("Migration 003 applied.");
-  }
-
-  if (!appliedIds.has("004_food_plates")) {
-    const sqlPath = path.join(process.cwd(), "migrations/004_food_plates.sql");
-    const sql = fs.readFileSync(sqlPath, "utf8");
-    await query(sql);
-    await query(`INSERT INTO schema_migrations (id) VALUES ($1)`, ["004_food_plates"]);
-    console.log("Migration 004 applied.");
-  }
-
-  for (const id of ["005_meal_groups", "006_dish_catalog_corrections", "007_dish_catalog_schema"]) {
-    if (!appliedIds.has(id)) {
-      const sqlPath = path.join(process.cwd(), `migrations/${id}.sql`);
-      const sql = fs.readFileSync(sqlPath, "utf8");
-      await query(sql);
-      await query(`INSERT INTO schema_migrations (id) VALUES ($1)`, [id]);
-      console.log(`Migration ${id} applied.`);
-    }
+    await query(`INSERT INTO schema_migrations (id) VALUES ($1)`, [id]);
+    console.log(`Migration ${id} applied.`);
   }
 }
