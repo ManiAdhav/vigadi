@@ -8,6 +8,7 @@ import {
 } from "./memoryStore";
 import type { DaySettings, MealTemplate } from "../../shared/mealTemplates";
 import type { FoodPlate } from "../../shared/foodPlates";
+import type { PreferenceProfile } from "../../shared/preferences";
 
 export interface TasteProfile {
   liked_dish_types: Record<string, number>;
@@ -29,6 +30,7 @@ export interface UserProfileRow {
   meal_templates?: MealTemplate[];
   food_plates?: FoodPlate[];
   day_settings?: DaySettings;
+  preferences?: PreferenceProfile;
 }
 
 const DEFAULT_TASTE: TasteProfile = {

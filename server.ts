@@ -59,6 +59,12 @@ import {
   prepareFoodPlateForSave,
 } from "./shared/foodPlates";
 import type { FoodPlate } from "./shared/foodPlates";
+import {
+  parsePreferences,
+  preferenceFallbackTemplate,
+  preferenceRulesDescription,
+} from "./shared/preferences";
+import { getPreferences, savePreferences } from "./server/db/preferences";
 import { discoverAndStoreIngredients } from "./server/discovery";
 import { buildCombosForMealSlots } from "./server/globalComboService";
 import { describeComboBuildFailure } from "./server/comboBuildErrors";
@@ -878,7 +884,7 @@ app.get("/api/catalog/dishes/search", async (req, res) => {
 
 // --- Phase B: Build 3–5 combos from catalog + user rules ---
 app.post("/api/combos/build", async (req, res) => {
-  const { ingredients, rules, category, userId, username, templateId, template, includesRice, generateAllTemplateMeals } = req.body;
+  const { ingredients, category, userId, username, templateId, template, includesRice, generateAllTemplateMeals } = req.body;
   if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
     return res.status(400).json({ error: "Provide ingredients to build combos." });
   }
@@ -906,20 +912,26 @@ app.post("/api/combos/build", async (req, res) => {
     }
   }
 
-  const mealSlot =
-    activeTemplate && templateHasMealSlot(activeTemplate, requestedSlot)
-      ? requestedSlot
-      : activeTemplate
-        ? templatePrimaryMealSlot(activeTemplate)
-        : requestedSlot;
+  // Nothing matched (no plate, no template, or a templateId that no longer
+  // exists) — fall back to a slot-shaped default built from what we know
+  // about this user, instead of a Lunch-shaped rule applied to every slot.
+  let fallbackPreferences: Awaited<ReturnType<typeof getPreferences>> | undefined;
+  if (!activeTemplate) {
+    fallbackPreferences = await getPreferences(uid);
+    activeTemplate = preferenceFallbackTemplate(fallbackPreferences, requestedSlot);
+  }
+
+  const mealSlot = templateHasMealSlot(activeTemplate, requestedSlot)
+    ? requestedSlot
+    : templatePrimaryMealSlot(activeTemplate);
   const categoryLabel = uiSlotFromMealSlot(mealSlot);
   const hasRice = !!includesRice;
 
   const activeRules = activeFoodPlate
     ? foodPlateToRulesDescription(activeFoodPlate)
-    : activeTemplate
-      ? `${activeTemplate.name}: ${formatTemplatePreview(activeTemplate)}`
-      : rules || "Tamil Nadu rules: 1 Kulambu, 2 Sides";
+    : fallbackPreferences
+      ? `${activeTemplate.name}: ${formatTemplatePreview(activeTemplate)}. ${preferenceRulesDescription(fallbackPreferences, mealSlot)}`
+      : `${activeTemplate.name}: ${formatTemplatePreview(activeTemplate)}`;
   await updateUserComboRules(uid, activeRules);
 
   try {
@@ -1209,6 +1221,22 @@ app.post("/api/food-plates/:userId/:plateId/duplicate", async (req, res) => {
   const uid = req.params.userId || "default-user";
   const plates = await duplicateFoodPlate(uid, req.params.plateId);
   res.json({ plates });
+});
+
+// --- User preference profile (fallback when a meal slot has no plate) ---
+app.get("/api/preferences/:userId", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  await ensureUserProfile(uid, "Guest");
+  const preferences = await getPreferences(uid);
+  res.json({ preferences });
+});
+
+app.post("/api/preferences/:userId", async (req, res) => {
+  const uid = req.params.userId || "default-user";
+  await ensureUserProfile(uid, "Guest");
+  const preferences = parsePreferences(req.body?.preferences);
+  await savePreferences(uid, preferences);
+  res.json({ preferences });
 });
 
 app.put("/api/day-settings/:userId", async (req, res) => {

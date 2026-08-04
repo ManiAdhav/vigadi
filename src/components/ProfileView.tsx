@@ -4,6 +4,7 @@ import { Meal, MealTemplate } from "../types";
 import TemplateBuilder from "./TemplateBuilder";
 import FoodPlateBuilder from "./FoodPlateBuilder";
 import AccountPanel from "./AccountPanel";
+import PreferencePanel from "./PreferencePanel";
 import { useUser } from "../useUser";
 import { formatTemplatePreview, normalizeTemplate, templateMealsLabel } from "../../shared/mealTemplates";
 import { FoodPlate, foodPlateSummary } from "../../shared/foodPlates";
@@ -218,6 +219,9 @@ export default function ProfileView({ onSelectMealById }: ProfileViewProps) {
 
       {/* Account: optional — guest mode keeps working without one */}
       <AccountPanel account={account} onSignup={signup} onLogin={login} onLogout={logout} />
+
+      {/* User Preference: fallback the menu generator reads when a slot has no plate */}
+      <PreferencePanel userId={userId} />
 
       {/* Cooking streak card matching screenshot */}
       <div className="bg-sage text-cream p-5 rounded-[22px] shadow-warm space-y-4">

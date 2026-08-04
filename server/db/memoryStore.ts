@@ -7,6 +7,7 @@ import {
   MealTemplate,
 } from "../../shared/mealTemplates";
 import type { FoodPlate } from "../../shared/foodPlates";
+import { DEFAULT_PREFERENCES, PreferenceProfile } from "../../shared/preferences";
 
 const DEFAULT_TASTE: TasteProfile = {
   liked_dish_types: {},
@@ -156,6 +157,7 @@ export function memoryEnsureUserProfile(userId: string, username: string): void 
     meal_templates: [],
     food_plates: [],
     day_settings: { ...DEFAULT_DAY_SETTINGS },
+    preferences: { ...DEFAULT_PREFERENCES },
   });
 }
 
@@ -211,4 +213,14 @@ export function memoryGetFoodPlates(userId: string): FoodPlate[] {
 export function memorySaveFoodPlates(userId: string, plates: FoodPlate[]): void {
   memoryEnsureUserProfile(userId, "Guest");
   userProfiles.get(userId)!.food_plates = plates;
+}
+
+export function memoryGetPreferences(userId: string): PreferenceProfile {
+  memoryEnsureUserProfile(userId, "Guest");
+  return userProfiles.get(userId)!.preferences ?? { ...DEFAULT_PREFERENCES };
+}
+
+export function memorySavePreferences(userId: string, preferences: PreferenceProfile): void {
+  memoryEnsureUserProfile(userId, "Guest");
+  userProfiles.get(userId)!.preferences = preferences;
 }
