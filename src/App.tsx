@@ -1,7 +1,14 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Compass, ChefHat, CalendarDays, User } from "lucide-react";
 import { motion } from "motion/react";
-import { ActiveScreen, Meal, MealLog } from "./types";
+import { ActiveScreen, Meal } from "./types";
+import {
+  MealLogEntry,
+  MealLogItemInput,
+  MealLogType,
+  todayIso,
+} from "../shared/mealLogs";
+import { useUser } from "./useUser";
 import HomeView from "./components/HomeView";
 import KitchenView from "./components/KitchenView";
 import LogsView from "./components/LogsView";
@@ -9,99 +16,114 @@ import ProfileView from "./components/ProfileView";
 import RecipeDetailModal from "./components/RecipeDetailModal";
 
 export default function App() {
+  const { userId } = useUser();
   const [activeTab, setActiveTab] = useState<ActiveScreen>("home");
   const [meals, setMeals] = useState<Meal[]>([]);
-  const [logs, setLogs] = useState<MealLog[]>([]);
+  const [logDate, setLogDate] = useState<string>(todayIso());
+  // Meals are stored with the date they were loaded for. Responses can land out
+  // of order when the day is switched quickly, and a food diary must never show
+  // one day's meals under another day's heading.
+  const [loadedDay, setLoadedDay] = useState<{ date: string; meals: MealLogEntry[] }>({
+    date: todayIso(),
+    meals: [],
+  });
+  const dayMeals = loadedDay.date === logDate ? loadedDay.meals : [];
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Synchronize data with server-side Express memory database
-  const fetchState = async () => {
-    try {
-      const [mealsRes, logsRes] = await Promise.all([
-        fetch("/api/meals"),
-        fetch("/api/logs")
-      ]);
-      const mealsData = await mealsRes.json();
-      const logsData = await logsRes.json();
-      
-      setMeals(mealsData.meals || []);
-      setLogs(logsData.logs || []);
-    } catch (err) {
-      console.error("Failed to load initial Vigadi fullstack state:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchState();
+    fetch("/api/meals")
+      .then((res) => res.json())
+      .then((data) => setMeals(data.meals || []))
+      .catch((err) => console.error("Failed to load Vigadi meals:", err))
+      .finally(() => setIsLoading(false));
   }, []);
 
-  // 1. Log a meal today (invokes server API)
+  // The diary only ever holds the day being looked at, so switching days is a
+  // fresh read rather than a filter over everything ever logged.
+  const fetchDay = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/logs/${userId}?date=${logDate}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      // The response says which day it is for, so a late arrival cannot be
+      // mistaken for the day now on screen.
+      setLoadedDay({ date: data.date ?? logDate, meals: data.meals || [] });
+    } catch (err) {
+      console.error("Failed to load the diary:", err);
+    }
+  }, [userId, logDate]);
+
+  useEffect(() => {
+    fetchDay();
+  }, [fetchDay]);
+
+  // 1. Log dishes into a meal on the selected day
+  const handleSaveMeal = async (
+    mealType: MealLogType,
+    dishes: MealLogItemInput[]
+  ): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`/api/logs/${userId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: logDate, mealType, dishes }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: data.error || "Could not save that meal." };
+      setLoadedDay({ date: data.date ?? logDate, meals: data.meals || [] });
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Network error — check your connection." };
+    }
+  };
+
+  // 2. Log a suggested combo from the recipe drawer as one meal
   const handleLogMeal = async (meal: Meal) => {
+    const mealType = (meal.category || "").toLowerCase();
+    await handleSaveMeal(
+      (["breakfast", "lunch", "dinner", "snack"].includes(mealType)
+        ? mealType
+        : "lunch") as MealLogType,
+      // A combo is its dishes, so it lands as separate rows rather than one
+      // long name — the same shape as typing them in by hand.
+      (meal.subComponents?.length ? meal.subComponents : [meal.recipeName]).map((name) => ({
+        name,
+      }))
+    );
+  };
+
+  // 3. Delete a whole meal
+  const handleDeleteMeal = async (mealId: string) => {
     try {
-      const response = await fetch("/api/logs/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recipeName: meal.recipeName,
-          macros: meal.macros,
-          imageUrl: meal.image,
-          mealType: meal.category || "Snack",
-          review: meal.nutritionFact
-        })
-      });
-      if (response.ok) {
-        await fetchState(); // reload logs
-      }
+      const res = await fetch(`/api/logs/${userId}/${mealId}`, { method: "DELETE" });
+      if (res.ok) await fetchDay();
     } catch (err) {
-      console.error("Could not write plate log:", err);
+      console.error("Failed deleting meal:", err);
     }
   };
 
-  // 2. Add an explicit meal from Vision parser or manual log
-  const handleAddDirectLog = async (partialLog: Partial<MealLog>) => {
+  // 4. Delete one dish from a meal
+  const handleDeleteItem = async (mealId: string, itemId: number) => {
     try {
-      const response = await fetch("/api/logs/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(partialLog)
+      const res = await fetch(`/api/logs/${userId}/${mealId}/items/${itemId}`, {
+        method: "DELETE",
       });
-      if (response.ok) {
-        await fetchState();
-      }
+      if (res.ok) await fetchDay();
     } catch (err) {
-      console.error("Could not add custom log:", err);
+      console.error("Failed deleting dish:", err);
     }
   };
 
-  // 3. Delete a log entry
-  const handleDeleteLog = async (id: string) => {
-    try {
-      const response = await fetch(`/api/logs/${id}`, {
-        method: "DELETE"
-      });
-      if (response.ok) {
-        await fetchState();
-      }
-    } catch (err) {
-      console.error("Failed deleting log item:", err);
-    }
-  };
-
-  // 4. Reset diary logs
+  // 5. Clear the whole diary
   const handleResetLogs = async () => {
+    if (!window.confirm("Clear every meal you have logged? This cannot be undone.")) return;
     try {
-      const response = await fetch("/api/logs/reset", {
-        method: "POST"
-      });
-      if (response.ok) {
-        await fetchState();
-      }
+      const res = await fetch(`/api/logs/${userId}/reset`, { method: "POST" });
+      if (res.ok) await fetchDay();
     } catch (err) {
-      console.error("Error resetting tracker logs:", err);
+      console.error("Error clearing the diary:", err);
     }
   };
 
@@ -184,10 +206,13 @@ export default function App() {
           )}
 
           {activeTab === "logs" && (
-            <LogsView 
-              logs={logs} 
-              onAddLog={handleAddDirectLog} 
-              onDeleteLog={handleDeleteLog} 
+            <LogsView
+              date={logDate}
+              meals={dayMeals}
+              onDateChange={setLogDate}
+              onSaveMeal={handleSaveMeal}
+              onDeleteMeal={handleDeleteMeal}
+              onDeleteItem={handleDeleteItem}
               onResetLogs={handleResetLogs}
             />
           )}

@@ -13,17 +13,27 @@ interface DishSearchInputProps {
   onSelect: (slot: ReturnType<typeof slotFromDishName>) => void;
   placeholder?: string;
   category?: string;
+  /**
+   * Makes Enter commit exactly what was typed instead of the top suggestion.
+   * Logging a cooked meal needs this: "Fish Fry" must not become whatever the
+   * catalog ranked first. Arrowing to a suggestion still picks that suggestion,
+   * and so does clicking one. Off by default so template building keeps its
+   * existing pick-the-best-match behaviour.
+   */
+  commitTypedOnEnter?: boolean;
 }
 
 export default function DishSearchInput({
   onSelect,
   placeholder = "Search dishes…",
   category,
+  commitTypedOnEnter = false,
 }: DishSearchInputProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<DishSearchResult[]>([]);
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  const [hasNavigated, setHasNavigated] = useState(false);
   const [loading, setLoading] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -55,6 +65,7 @@ export default function DishSearchInput({
       setResults(dishes);
       setOpen(dishes.length > 0);
       setHighlight(0);
+      setHasNavigated(false);
     } catch {
       setResults([]);
       setOpen(false);
@@ -105,7 +116,12 @@ export default function DishSearchInput({
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (open && results.length > 0) {
+      // Only take the highlighted suggestion when it was actually chosen —
+      // either by arrowing to it, or because this input picks best-match on
+      // Enter. Otherwise the typed text wins.
+      const takeSuggestion =
+        open && results.length > 0 && (!commitTypedOnEnter || hasNavigated);
+      if (takeSuggestion) {
         pick(results[highlight]);
       } else {
         addTypedName();
@@ -118,9 +134,11 @@ export default function DishSearchInput({
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      setHasNavigated(true);
       setHighlight((h) => (h + 1) % results.length);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      setHasNavigated(true);
       setHighlight((h) => (h - 1 + results.length) % results.length);
     } else if (e.key === "Escape") {
       setOpen(false);
@@ -173,8 +191,8 @@ export default function DishSearchInput({
 
       {query.trim() && !loading && results.length === 0 && (
         <p className="mt-1.5 text-[10px] text-espresso/50">
-          No catalog match — press Enter to add &ldquo;{query.trim()}&rdquo; as a custom dish, or pick a
-          type below
+          No catalog match — press Enter to add &ldquo;{query.trim()}&rdquo; as a custom dish
+          {commitTypedOnEnter ? "" : ", or pick a type below"}
         </p>
       )}
     </div>

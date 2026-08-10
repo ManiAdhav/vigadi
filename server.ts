@@ -38,7 +38,19 @@ import {
   upsertFoodPlate,
   deleteFoodPlate,
   duplicateFoodPlate,
+  getMealLogsForDate,
+  addDishesToMeal,
+  deleteMealLog,
+  deleteMealLogItem,
+  clearMealLogs,
 } from "./server/db";
+import {
+  isIsoDate,
+  normalizeMealType,
+  todayIso,
+  validateMealLogInput,
+} from "./shared/mealLogs";
+import type { MealLogItemInput } from "./shared/mealLogs";
 import {
   formatTemplatePreview,
   mealSlotFromUi,
@@ -343,28 +355,6 @@ const INITIAL_MEALS: any[] = [
   }
 ];
 
-// Memory database for logged plates
-let USER_LOGS = [
-  {
-    id: "log-1",
-    recipeName: "Earthy Quinoa Salad & Sweet Potato Combo",
-    timestamp: new Date(Date.now() - 3 * 3600000).toISOString(), // 3 hours ago
-    macros: { carbs: 48, protein: 14, fat: 12, calories: 356 },
-    imageUrl: "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
-    mealType: "Lunch",
-    review: "Incredibly refreshing and rich in gut-supportive prebiotic fibers."
-  },
-  {
-    id: "log-2",
-    recipeName: "Avocado Toast & Poached Egg Breakfast Combo",
-    timestamp: new Date(Date.now() - 11 * 3600000).toISOString(), // 11 hours ago
-    macros: { carbs: 28, protein: 16, fat: 18, calories: 338 },
-    imageUrl: "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?auto=format&fit=crop&w=800&q=80",
-    mealType: "Breakfast",
-    review: "Kept my focus sharp through four morning calls without any sugar rollercoasters."
-  }
-];
-
 // Lazy-initialize Gemini API
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
@@ -400,58 +390,161 @@ app.get("/api/meals", (req, res) => {
   res.json({ meals: INITIAL_MEALS });
 });
 
-// 2. API: Get logs list
-app.get("/api/logs", (req, res) => {
-  res.json({ logs: USER_LOGS });
-});
-
-// 3. API: Add a manual or identified plate log
-app.post("/api/logs/add", (req, res) => {
-  const { recipeName, macros, imageUrl, mealType, review } = req.body;
-  if (!recipeName || !macros) {
-    return res.status(400).json({ error: "Missing recipeName or macros structure." });
+// Registered before the /api/logs/:userId routes below: Express matches in
+// order, so the parameterised route would otherwise swallow this path.
+app.post("/api/logs/parse-photo", async (req, res) => {
+  const { imageBase64, mimeType } = req.body;
+  if (!imageBase64) {
+    return res.status(400).json({ error: "No image file provided for Vígadi Vision." });
   }
 
-  const newLog = {
-    id: `log-${Date.now()}`,
-    recipeName,
-    timestamp: new Date().toISOString(),
-    macros: {
-      carbs: Number(macros.carbs) || 0,
-      protein: Number(macros.protein) || 0,
-      fat: Number(macros.fat) || 0,
-      calories: Number(macros.calories) || 0
-    },
-    imageUrl: imageUrl || "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=400&q=80",
-    mealType: mealType || "Snack",
-    review: review || "Lovingly prepared and safely logged today."
-  };
+  const client = getGeminiClient();
+  if (!client) {
+    // Offline simulated backup log parsed from a dummy file signature or name
+    return res.json({
+      recipeName: "Green Harvest Organic Plate",
+      prepTimeEstimate: "15 min",
+      ingredients: [
+        "1 Avocado",
+        "Handful of fresh watercress",
+        "2 organic Free-range eggs",
+        "Drizzle of sesame oil"
+      ],
+      macros: {
+        carbs: 22,
+        protein: 15,
+        fat: 16,
+        calories: 292
+      },
+      review: "A highly elegant, clean-looking plate tracked offline. Rich in monounsaturated fats and dynamic trace minerals.",
+      offline: true
+    });
+  }
 
-  USER_LOGS.unshift(newLog);
-  res.status(201).json({ status: "success", log: newLog });
+  try {
+    const rawData = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    const imagePart = {
+      inlineData: {
+        data: rawData,
+        mimeType: mimeType || "image/jpeg"
+      }
+    };
+
+    const textPart = {
+      text: `You are Vigadi, a warm and neutral lifestyle food companion. Detect the food or culinary preparation in this meal photo. Estimate its ingredients, portions, find prep time, and calculate estimated macronutrient info (carbs, protein, fat, calories).
+Never judge the user's choices. Respond neutrally and with deep encouraging warmth.
+Respond strictly in JSON format using this exact schema:
+{
+  "recipeName": "A descriptive, appealing culinary name of the detected dish",
+  "prepTimeEstimate": "Estimated cooking/prep time (e.g. '20 min')",
+  "ingredients": [
+    "estimated portion of ingredient or condiment detected"
+  ],
+  "macros": {
+    "carbs": 30,
+    "protein": 18,
+    "fat": 14,
+    "calories": 318
+  },
+  "review": "Provide a warm, premium, non-judgmental description of this food choice (e.g. 'This represents a beautiful source of clean energy to help you float through your active afternoon schedule. Egg yolks offer amazing fat-soluble brain food.')"
+}`
+    };
+
+    const response = await client.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: { parts: [imagePart, textPart] },
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    const parsedData = cleanAndParseJson(response.text || "{}") || {};
+    res.json(parsedData);
+  } catch (error: any) {
+    console.error("Gemini Vision Parser failed:", error);
+    res.status(500).json({ error: "Gemini Vision failed to scan the dish. Try checking the format or API parameters." });
+  }
 });
 
-// 4. API: Delete logged plate
-app.delete("/api/logs/:id", (req, res) => {
-  const { id } = req.params;
-  USER_LOGS = USER_LOGS.filter((l) => l.id !== id);
-  res.json({ status: "success" });
+// 2. API: Get one day's meals for a user
+app.get("/api/logs/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const date = typeof req.query.date === "string" ? req.query.date : todayIso();
+  if (!isIsoDate(date)) {
+    return res.status(400).json({ error: "date must be YYYY-MM-DD." });
+  }
+  try {
+    const meals = await getMealLogsForDate(userId, date);
+    res.json({ date, meals });
+  } catch (error: any) {
+    console.error("Failed to read meal logs:", error);
+    res.status(500).json({ error: "Could not read your diary." });
+  }
 });
 
-// 5. API: Clear user logs (for resetting demo)
-app.post("/api/logs/reset", (req, res) => {
-  USER_LOGS = [
-    {
-      id: "log-1",
-      recipeName: "Earthy Quinoa Salad Bowl",
-      timestamp: new Date().toISOString(),
-      macros: { carbs: 48, protein: 14, fat: 12, calories: 356 },
-      imageUrl: "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
-      mealType: "Lunch",
-      review: "Incredibly refreshing and rich in gut-supportive prebiotic fibers."
-    }
-  ];
-  res.json({ status: "success", logs: USER_LOGS });
+// 3. API: Log a meal — one meal, many dishes, on a date the user chose
+app.post("/api/logs/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const { date, mealType, dishes } = req.body ?? {};
+  const items: MealLogItemInput[] = Array.isArray(dishes) ? dishes : [];
+
+  const problem = validateMealLogInput(date, items);
+  if (problem) {
+    return res.status(400).json({ error: problem });
+  }
+
+  try {
+    const meals = await addDishesToMeal(
+      userId,
+      date,
+      normalizeMealType(mealType),
+      items
+    );
+    res.status(201).json({ date, meals });
+  } catch (error: any) {
+    console.error("Failed to save meal log:", error);
+    res.status(500).json({ error: "Could not save that meal." });
+  }
+});
+
+// 4. API: Delete a whole meal
+app.delete("/api/logs/:userId/:mealId", async (req, res) => {
+  const { userId, mealId } = req.params;
+  try {
+    await deleteMealLog(userId, mealId);
+    res.json({ status: "success" });
+  } catch (error: any) {
+    console.error("Failed to delete meal log:", error);
+    res.status(500).json({ error: "Could not delete that meal." });
+  }
+});
+
+// 5. API: Delete a single dish from a meal
+app.delete("/api/logs/:userId/:mealId/items/:itemId", async (req, res) => {
+  const { userId, mealId, itemId } = req.params;
+  const numericId = Number(itemId);
+  if (!Number.isFinite(numericId)) {
+    return res.status(400).json({ error: "Invalid dish id." });
+  }
+  try {
+    await deleteMealLogItem(userId, mealId, numericId);
+    res.json({ status: "success" });
+  } catch (error: any) {
+    console.error("Failed to delete meal log item:", error);
+    res.status(500).json({ error: "Could not remove that dish." });
+  }
+});
+
+// 6. API: Clear this user's diary
+app.post("/api/logs/:userId/reset", async (req, res) => {
+  const { userId } = req.params;
+  try {
+    await clearMealLogs(userId);
+    res.json({ status: "success", meals: [] });
+  } catch (error: any) {
+    console.error("Failed to clear meal logs:", error);
+    res.status(500).json({ error: "Could not clear your diary." });
+  }
 });
 
 // --- Engine 5 (Learning): Memory Database for Thumbs Up/Down and Prompt Alignment ---
@@ -1269,79 +1362,6 @@ app.get("/api/user/:userId", async (req, res) => {
 });
 
 // 7. API: Photo-first parsing logging (Vision AI)
-app.post("/api/logs/parse-photo", async (req, res) => {
-  const { imageBase64, mimeType } = req.body;
-  if (!imageBase64) {
-    return res.status(400).json({ error: "No image file provided for Vígadi Vision." });
-  }
-
-  const client = getGeminiClient();
-  if (!client) {
-    // Offline simulated backup log parsed from a dummy file signature or name
-    return res.json({
-      recipeName: "Green Harvest Organic Plate",
-      prepTimeEstimate: "15 min",
-      ingredients: [
-        "1 Avocado",
-        "Handful of fresh watercress",
-        "2 organic Free-range eggs",
-        "Drizzle of sesame oil"
-      ],
-      macros: {
-        carbs: 22,
-        protein: 15,
-        fat: 16,
-        calories: 292
-      },
-      review: "A highly elegant, clean-looking plate tracked offline. Rich in monounsaturated fats and dynamic trace minerals.",
-      offline: true
-    });
-  }
-
-  try {
-    const rawData = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-    const imagePart = {
-      inlineData: {
-        data: rawData,
-        mimeType: mimeType || "image/jpeg"
-      }
-    };
-
-    const textPart = {
-      text: `You are Vigadi, a warm and neutral lifestyle food companion. Detect the food or culinary preparation in this meal photo. Estimate its ingredients, portions, find prep time, and calculate estimated macronutrient info (carbs, protein, fat, calories).
-Never judge the user's choices. Respond neutrally and with deep encouraging warmth.
-Respond strictly in JSON format using this exact schema:
-{
-  "recipeName": "A descriptive, appealing culinary name of the detected dish",
-  "prepTimeEstimate": "Estimated cooking/prep time (e.g. '20 min')",
-  "ingredients": [
-    "estimated portion of ingredient or condiment detected"
-  ],
-  "macros": {
-    "carbs": 30,
-    "protein": 18,
-    "fat": 14,
-    "calories": 318
-  },
-  "review": "Provide a warm, premium, non-judgmental description of this food choice (e.g. 'This represents a beautiful source of clean energy to help you float through your active afternoon schedule. Egg yolks offer amazing fat-soluble brain food.')"
-}`
-    };
-
-    const response = await client.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: { parts: [imagePart, textPart] },
-      config: {
-        responseMimeType: "application/json"
-      }
-    });
-
-    const parsedData = cleanAndParseJson(response.text || "{}") || {};
-    res.json(parsedData);
-  } catch (error: any) {
-    console.error("Gemini Vision Parser failed:", error);
-    res.status(500).json({ error: "Gemini Vision failed to scan the dish. Try checking the format or API parameters." });
-  }
-});
 
 // Serve assets and standard Express logic
 async function startServer() {

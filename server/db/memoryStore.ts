@@ -7,6 +7,13 @@ import {
   MealTemplate,
 } from "../../shared/mealTemplates";
 import type { FoodPlate } from "../../shared/foodPlates";
+import {
+  createMealLogId,
+  sortMealsByTime,
+  type MealLogEntry,
+  type MealLogItemInput,
+  type MealLogType,
+} from "../../shared/mealLogs";
 import { DEFAULT_PREFERENCES, PreferenceProfile } from "../../shared/preferences";
 
 const DEFAULT_TASTE: TasteProfile = {
@@ -213,6 +220,70 @@ export function memoryGetFoodPlates(userId: string): FoodPlate[] {
 export function memorySaveFoodPlates(userId: string, plates: FoodPlate[]): void {
   memoryEnsureUserProfile(userId, "Guest");
   userProfiles.get(userId)!.food_plates = plates;
+}
+
+const mealLogs = new Map<string, MealLogEntry[]>();
+let nextMealLogItemId = 1;
+
+function userMealLogs(userId: string): MealLogEntry[] {
+  const existing = mealLogs.get(userId);
+  if (existing) return existing;
+  const created: MealLogEntry[] = [];
+  mealLogs.set(userId, created);
+  return created;
+}
+
+export function memoryGetMealLogsForDate(userId: string, date: string): MealLogEntry[] {
+  return sortMealsByTime(userMealLogs(userId).filter((m) => m.loggedOn === date));
+}
+
+export function memoryAddDishesToMeal(
+  userId: string,
+  date: string,
+  mealType: MealLogType,
+  items: MealLogItemInput[]
+): void {
+  const logs = userMealLogs(userId);
+  let meal = logs.find((m) => m.loggedOn === date && m.mealType === mealType);
+  if (!meal) {
+    meal = { id: createMealLogId(), loggedOn: date, mealType, items: [] };
+    logs.push(meal);
+  }
+  for (const item of items) {
+    meal.items.push({
+      id: nextMealLogItemId++,
+      dishName: item.name,
+      dishId: item.dishId ?? null,
+      calories: item.calories ?? null,
+      carbs: item.carbs ?? null,
+      protein: item.protein ?? null,
+      fat: item.fat ?? null,
+      imageUrl: item.imageUrl ?? null,
+      review: item.review ?? null,
+    });
+  }
+}
+
+export function memoryDeleteMealLog(userId: string, mealLogId: string): void {
+  mealLogs.set(
+    userId,
+    userMealLogs(userId).filter((m) => m.id !== mealLogId)
+  );
+}
+
+export function memoryDeleteMealLogItem(
+  userId: string,
+  mealLogId: string,
+  itemId: number
+): void {
+  const meal = userMealLogs(userId).find((m) => m.id === mealLogId);
+  if (!meal) return;
+  meal.items = meal.items.filter((i) => i.id !== itemId);
+  if (meal.items.length === 0) memoryDeleteMealLog(userId, mealLogId);
+}
+
+export function memoryClearMealLogs(userId: string): void {
+  mealLogs.set(userId, []);
 }
 
 export function memoryGetPreferences(userId: string): PreferenceProfile {

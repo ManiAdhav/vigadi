@@ -86,15 +86,11 @@ export interface Meal {
   youtubeLinks?: Record<string, string>;
 }
 
-export interface MealLog {
-  id: string;
-  recipeName: string;
-  timestamp: string;
-  macros: Macros;
-  imageUrl: string;
-  mealType: "Breakfast" | "Lunch" | "Dinner" | "Snack" | string;
-  review?: string;
-  offline?: boolean;
-}
+export type {
+  MealLogEntry,
+  MealLogItem,
+  MealLogItemInput,
+  MealLogType,
+} from "../shared/mealLogs";
 
 export type ActiveScreen = "home" | "kitchen" | "logs" | "profile";
