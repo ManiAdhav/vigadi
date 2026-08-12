@@ -17,6 +17,7 @@ import {
 } from "../../shared/mealLogs";
 import { buildLoggedIngredientSignature } from "../../shared/loggedIngredients";
 import { DEFAULT_PREFERENCES, PreferenceProfile } from "../../shared/preferences";
+import { dishNameMatchesQuery, dishSearchRank } from "../../shared/staples";
 
 const DEFAULT_TASTE: TasteProfile = {
   liked_dish_types: {},
@@ -56,6 +57,7 @@ export function memoryInsertDish(dish: {
   baseTags?: string[];
   accompaniments?: string[];
   englishAlias?: string;
+  nameAliases?: string[];
   youtubeUrl?: string;
   youtubeVideoId?: string;
   spiceLevel?: string;
@@ -81,6 +83,7 @@ export function memoryInsertDish(dish: {
     base_tags: dish.baseTags ?? [],
     accompaniments: dish.accompaniments ?? [],
     english_alias: dish.englishAlias ?? null,
+    name_aliases: dish.nameAliases ?? [],
     youtube_url: dish.youtubeUrl ?? null,
     youtube_video_id: dish.youtubeVideoId ?? null,
     dish_type: null,
@@ -132,20 +135,23 @@ export function memoryGetDishById(id: number): DishRow | undefined {
 export function memorySearchDishes(queryText: string, limit = 10): DishRow[] {
   const q = queryText.toLowerCase().trim();
   if (!q) return [];
+  const searchable = (d: DishRow) => ({
+    name: d.name,
+    name_aliases: Array.isArray(d.name_aliases) ? (d.name_aliases as string[]) : [],
+  });
+
   return dishes
     .filter(
       (d) =>
-        d.name.toLowerCase().includes(q) ||
+        dishNameMatchesQuery(searchable(d), q) ||
         d.ingredient_name?.toLowerCase().includes(q) ||
         d.dish_group?.toLowerCase().includes(q) ||
         d.dish_category?.toLowerCase().includes(q) ||
         d.english_alias?.toLowerCase().includes(q)
     )
     .sort((a, b) => {
-      const aStarts = a.name.toLowerCase().startsWith(q);
-      const bStarts = b.name.toLowerCase().startsWith(q);
-      if (aStarts && !bStarts) return -1;
-      if (!aStarts && bStarts) return 1;
+      const rank = dishSearchRank(searchable(a), q) - dishSearchRank(searchable(b), q);
+      if (rank !== 0) return rank;
       return a.name.localeCompare(b.name);
     })
     .slice(0, limit);

@@ -26,6 +26,8 @@ export interface CsvDishRow {
   base_tags: string;
   accompaniments: string;
   english_alias: string;
+  /** Optional trailing column; absent in the original export. */
+  name_aliases?: string;
   spice_level: string;
   main_ingredients: string;
   description: string;
@@ -46,6 +48,7 @@ export interface ParsedCsvDish {
   baseTags: string[];
   accompaniments: string[];
   englishAlias: string | null;
+  nameAliases: string[];
   spiceLevel: string;
   mainIngredients: string[];
   description: string;
@@ -67,6 +70,7 @@ export function parseCsvDishRow(row: CsvDishRow): ParsedCsvDish {
     baseTags: parseSemicolonList(row.base_tags),
     accompaniments: parseSemicolonList(row.accompaniments),
     englishAlias: row.english_alias?.trim() || null,
+    nameAliases: parseSemicolonList(row.name_aliases),
     spiceLevel: row.spice_level.trim(),
     mainIngredients: parseSemicolonList(row.main_ingredients),
     description: row.description.trim(),

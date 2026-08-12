@@ -16,6 +16,7 @@
     "seed:ingredients": "tsx scripts/seed-ingredients.ts",
     "parse:dishes": "tsx scripts/parse-dish-rtf.ts",
     "seed:dishes": "tsx scripts/seed-dishes.ts",
+    "seed:staples": "tsx scripts/seed-staples.ts",
     "sync:dishes": "tsx scripts/sync-dish-batch.ts",
     "sync:dishes:file": "tsx scripts/sync-dish-file.ts",
     "sync:mixed-rice": "tsx scripts/sync-mixed-rice.ts",

@@ -103,13 +103,13 @@ async function main() {
       await client.query(
         `INSERT INTO dishes (
           id, ingredient_id, name, dish_group, dish_category, consistency,
-          base_tags, accompaniments, english_alias, spice_level, main_ingredients,
+          base_tags, accompaniments, english_alias, name_aliases, spice_level, main_ingredients,
           description, youtube_url, youtube_video_id, channel_name, source, discovered_at,
           dish_type, pairs_with
         ) VALUES (
           $1, $2, $3, $4, $5, $6,
-          $7::jsonb, $8::jsonb, $9, $10, $11::jsonb,
-          $12, $13, $14, $15, $16, COALESCE($17, NOW()),
+          $7::jsonb, $8::jsonb, $9, $10::jsonb, $11, $12::jsonb,
+          $13, $14, $15, $16, $17, COALESCE($18, NOW()),
           NULL, NULL
         )`,
         [
@@ -122,6 +122,7 @@ async function main() {
           JSON.stringify(dish.baseTags),
           JSON.stringify(dish.accompaniments),
           dish.englishAlias,
+          JSON.stringify(dish.nameAliases),
           dish.spiceLevel,
           JSON.stringify(dish.mainIngredients),
           dish.description,

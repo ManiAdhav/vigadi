@@ -32,6 +32,8 @@ export interface DishRow {
   base_tags: string | unknown[] | null;
   accompaniments: string | unknown[] | null;
   english_alias: string | null;
+  /** Alternate spellings / English names. See migration 008. */
+  name_aliases?: string | unknown[] | null;
   youtube_url: string | null;
   youtube_video_id: string | null;
   /** @deprecated */
@@ -92,6 +94,7 @@ export function parseDishRow(row: DishRow) {
     baseTags,
     accompaniments: parseJsonArray(row.accompaniments) as string[],
     englishAlias: row.english_alias,
+    nameAliases: parseJsonArray(row.name_aliases) as string[],
     youtubeUrl: row.youtube_url,
     youtubeVideoId: row.youtube_video_id,
     dishType: row.dish_category ?? row.dish_type,
@@ -140,6 +143,7 @@ export async function insertDish(dish: {
   baseTags?: string[];
   accompaniments?: string[];
   englishAlias?: string;
+  nameAliases?: string[];
   youtubeUrl?: string;
   youtubeVideoId?: string;
   spiceLevel?: string;
@@ -153,9 +157,9 @@ export async function insertDish(dish: {
     const result = await query<{ id: number }>(
       `INSERT INTO dishes (
         ingredient_id, name, dish_group, dish_category, consistency,
-        base_tags, accompaniments, english_alias, youtube_url, youtube_video_id,
+        base_tags, accompaniments, english_alias, name_aliases, youtube_url, youtube_video_id,
         spice_level, main_ingredients, description, channel_name, source
-      ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12::jsonb, $13, $14, $15)
+      ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::jsonb, $10, $11, $12, $13::jsonb, $14, $15, $16)
       ON CONFLICT (ingredient_id, name) DO NOTHING
       RETURNING id`,
       [
@@ -167,6 +171,7 @@ export async function insertDish(dish: {
         JSON.stringify(dish.baseTags ?? []),
         JSON.stringify(dish.accompaniments ?? []),
         dish.englishAlias ?? null,
+        JSON.stringify(dish.nameAliases ?? []),
         dish.youtubeUrl ?? null,
         dish.youtubeVideoId ?? null,
         dish.spiceLevel ?? null,
@@ -298,6 +303,8 @@ export async function searchDishes(
   } else {
     const pattern = `%${q}%`;
     const prefix = `${q}%`;
+    // An alias has to rank alongside the real name, not below it — otherwise
+    // typing "Rice" buries plain Sadam under 21 variety rices.
     const result = await query<DishRow>(
       `SELECT d.*, i.name as ingredient_name
        FROM dishes d
@@ -305,11 +312,33 @@ export async function searchDishes(
        WHERE d.name ILIKE $1 OR i.name ILIKE $1
           OR d.dish_group ILIKE $1 OR d.dish_category ILIKE $1
           OR d.english_alias ILIKE $1
+          OR EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(COALESCE(d.name_aliases, '[]'::jsonb)) a
+            WHERE a ILIKE $1
+          )
        ORDER BY
-         CASE WHEN d.name ILIKE $2 THEN 0 WHEN i.name ILIKE $2 THEN 1 ELSE 2 END,
+         CASE
+           WHEN lower(d.name) = $4 THEN 0
+           WHEN EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(COALESCE(d.name_aliases, '[]'::jsonb)) a
+             WHERE lower(a) = $4
+           ) THEN 0
+           WHEN d.name ILIKE $2 THEN 1
+           WHEN EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(COALESCE(d.name_aliases, '[]'::jsonb)) a
+             WHERE a ILIKE $2
+           ) THEN 1
+           WHEN d.name ILIKE $1 THEN 2
+           WHEN EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(COALESCE(d.name_aliases, '[]'::jsonb)) a
+             WHERE a ILIKE $1
+           ) THEN 3
+           WHEN i.name ILIKE $2 THEN 4
+           ELSE 5
+         END,
          d.name
        LIMIT $3`,
-      [pattern, prefix, fetchLimit]
+      [pattern, prefix, fetchLimit, q.toLowerCase()]
     );
     rows = result.rows;
   }
