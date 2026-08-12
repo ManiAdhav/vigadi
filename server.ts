@@ -39,6 +39,7 @@ import {
   deleteFoodPlate,
   duplicateFoodPlate,
   getMealLogsForDate,
+  getDishVariants,
   addDishesToMeal,
   deleteMealLog,
   deleteMealLogItem,
@@ -479,6 +480,25 @@ app.get("/api/logs/:userId", async (req, res) => {
   } catch (error: any) {
     console.error("Failed to read meal logs:", error);
     res.status(500).json({ error: "Could not read your diary." });
+  }
+});
+
+// 2b. API: Past versions of a dish she has logged before.
+//
+// Nobody cooks the same sambar twice, so this only ever offers a starting
+// point: the client shows it as a one-tap suggestion she can then edit.
+app.get("/api/logs/:userId/variants", async (req, res) => {
+  const { userId } = req.params;
+  const name = typeof req.query.name === "string" ? req.query.name : "";
+  if (!name.trim()) {
+    return res.status(400).json({ error: "name is required." });
+  }
+  try {
+    res.json({ variants: await getDishVariants(userId, name) });
+  } catch (error: any) {
+    console.error("Failed to read dish variants:", error);
+    // A missing suggestion must never block logging — fail quiet, not loud.
+    res.json({ variants: [] });
   }
 });
 

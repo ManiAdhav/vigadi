@@ -10,10 +10,12 @@ import type { FoodPlate } from "../../shared/foodPlates";
 import {
   createMealLogId,
   sortMealsByTime,
+  type CleanMealLogItem,
+  type DishVariant,
   type MealLogEntry,
-  type MealLogItemInput,
   type MealLogType,
 } from "../../shared/mealLogs";
+import { buildLoggedIngredientSignature } from "../../shared/loggedIngredients";
 import { DEFAULT_PREFERENCES, PreferenceProfile } from "../../shared/preferences";
 
 const DEFAULT_TASTE: TasteProfile = {
@@ -241,7 +243,7 @@ export function memoryAddDishesToMeal(
   userId: string,
   date: string,
   mealType: MealLogType,
-  items: MealLogItemInput[]
+  items: CleanMealLogItem[]
 ): void {
   const logs = userMealLogs(userId);
   let meal = logs.find((m) => m.loggedOn === date && m.mealType === mealType);
@@ -254,6 +256,7 @@ export function memoryAddDishesToMeal(
       id: nextMealLogItemId++,
       dishName: item.name,
       dishId: item.dishId ?? null,
+      ingredients: item.ingredients,
       calories: item.calories ?? null,
       carbs: item.carbs ?? null,
       protein: item.protein ?? null,
@@ -284,6 +287,47 @@ export function memoryDeleteMealLogItem(
 
 export function memoryClearMealLogs(userId: string): void {
   mealLogs.set(userId, []);
+}
+
+/** Mirrors the SQL GROUP BY in getDishVariants so dev without a database behaves the same. */
+export function memoryDishVariants(
+  userId: string,
+  dishName: string,
+  limit: number
+): DishVariant[] {
+  const wanted = dishName.trim().toLowerCase();
+  const bySignature = new Map<string, DishVariant>();
+
+  for (const meal of userMealLogs(userId)) {
+    for (const item of meal.items) {
+      if (item.dishName.trim().toLowerCase() !== wanted) continue;
+      if (item.ingredients.length === 0) continue;
+      const signature = buildLoggedIngredientSignature(item.ingredients);
+      const existing = bySignature.get(signature);
+      if (!existing) {
+        bySignature.set(signature, {
+          dishName: item.dishName,
+          ingredients: item.ingredients,
+          signature,
+          timesLogged: 1,
+          lastLoggedOn: meal.loggedOn,
+        });
+        continue;
+      }
+      existing.timesLogged += 1;
+      if (meal.loggedOn > existing.lastLoggedOn) {
+        existing.lastLoggedOn = meal.loggedOn;
+        existing.ingredients = item.ingredients;
+      }
+    }
+  }
+
+  return [...bySignature.values()]
+    .sort(
+      (a, b) =>
+        b.timesLogged - a.timesLogged || b.lastLoggedOn.localeCompare(a.lastLoggedOn)
+    )
+    .slice(0, limit);
 }
 
 export function memoryGetPreferences(userId: string): PreferenceProfile {

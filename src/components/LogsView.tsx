@@ -24,10 +24,12 @@ import {
   sumMacros,
   todayIso,
 } from "../../shared/mealLogs";
+import { formatLoggedIngredients } from "../../shared/loggedIngredients";
 
 interface LogsViewProps {
   date: string;
   meals: MealLogEntry[];
+  userId: string;
   onDateChange: (date: string) => void;
   onSaveMeal: (
     mealType: MealLogType,
@@ -41,6 +43,7 @@ interface LogsViewProps {
 export default function LogsView({
   date,
   meals,
+  userId,
   onDateChange,
   onSaveMeal,
   onDeleteMeal,
@@ -148,6 +151,7 @@ export default function LogsView({
       <ManualMealEntry
         date={date}
         mealType={mealType}
+        userId={userId}
         onDateChange={onDateChange}
         onMealTypeChange={setMealType}
         onSave={(dishes) => onSaveMeal(mealType, dishes)}
@@ -276,6 +280,11 @@ export default function LogsView({
                           <p className="text-sm font-display font-semibold text-espresso truncate">
                             {item.dishName}
                           </p>
+                          {item.ingredients.length > 0 && (
+                            <p className="text-[11px] text-espresso/60 truncate">
+                              {formatLoggedIngredients(item.ingredients)}
+                            </p>
+                          )}
                           {item.calories != null && (
                             <p className="text-[10px] font-mono text-espresso/60">
                               {item.calories} kcal · C {item.carbs ?? 0}g · P {item.protein ?? 0}g · F {item.fat ?? 0}g

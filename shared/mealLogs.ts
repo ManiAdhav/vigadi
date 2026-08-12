@@ -5,6 +5,12 @@
  * beans poriyal" is one MealLogEntry with four items.
  */
 
+import {
+  cleanLoggedIngredients,
+  type LoggedIngredient,
+  type LoggedIngredientInput,
+} from "./loggedIngredients";
+
 export const MEAL_LOG_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
 
 export type MealLogType = (typeof MEAL_LOG_TYPES)[number];
@@ -14,12 +20,28 @@ export interface MealLogItem {
   dishName: string;
   /** null when the dish is not in the catalog and we kept what was typed. */
   dishId: number | null;
+  /** What went into this dish on this day. Empty when she did not say. */
+  ingredients: LoggedIngredient[];
   calories: number | null;
   carbs: number | null;
   protein: number | null;
   fat: number | null;
   imageUrl: string | null;
   review: string | null;
+}
+
+/**
+ * One past version of a dish — "the sambar you made with carrot, beans and chow
+ * chow". Offered back as a starting point, never applied automatically: nobody
+ * cooks the same sambar twice.
+ */
+export interface DishVariant {
+  dishName: string;
+  ingredients: LoggedIngredient[];
+  /** Sorted canonical set, so the same version logged twice is recognised as one. */
+  signature: string;
+  timesLogged: number;
+  lastLoggedOn: string;
 }
 
 export interface MealLogEntry {
@@ -34,6 +56,7 @@ export interface MealLogEntry {
 export interface MealLogItemInput {
   name: string;
   dishId?: number | null;
+  ingredients?: (LoggedIngredientInput | string)[] | null;
   calories?: number | null;
   carbs?: number | null;
   protein?: number | null;
@@ -133,11 +156,24 @@ export function validateMealLogInput(
   return null;
 }
 
+/**
+ * A dish plus the ingredients that went into it, ready to store: names trimmed,
+ * blanks dropped, ingredients resolved against the catalog.
+ */
+export interface CleanMealLogItem extends MealLogItemInput {
+  name: string;
+  ingredients: LoggedIngredient[];
+}
+
 /** Drops blanks and trims, so a stray Enter never logs an empty dish. */
-export function cleanMealLogItems(items: MealLogItemInput[]): MealLogItemInput[] {
+export function cleanMealLogItems(items: MealLogItemInput[]): CleanMealLogItem[] {
   return items
     .filter((i) => i.name?.trim())
-    .map((i) => ({ ...i, name: i.name.trim() }));
+    .map((i) => ({
+      ...i,
+      name: i.name.trim(),
+      ingredients: cleanLoggedIngredients(i.ingredients),
+    }));
 }
 
 /** Only sums what actually has numbers — hand-typed dishes contribute nothing. */

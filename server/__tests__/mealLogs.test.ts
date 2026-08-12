@@ -4,6 +4,7 @@ import {
   deleteMealLog,
   deleteMealLogItem,
   clearMealLogs,
+  getDishVariants,
   getMealLogsForDate,
 } from "../db/mealLogs";
 import {
@@ -130,6 +131,112 @@ describe("logging a home-cooked meal", () => {
       { name: "   " },
     ]);
     expect(meals[0].items).toHaveLength(1);
+  });
+});
+
+describe("recording what went into a dish", () => {
+  beforeEach(async () => {
+    await clearMealLogs(USER);
+  });
+
+  it("stores her own sambar rather than forcing it onto a catalog one", async () => {
+    const meals = await addDishesToMeal(USER, "2026-08-10", "lunch", [
+      { name: "Sambar", ingredients: ["Carrot", "beans", "chow chow"] },
+    ]);
+
+    const item = meals[0].items[0];
+    expect(item.dishName).toBe("Sambar");
+    expect(item.dishId).toBeNull();
+    expect(item.ingredients.map((i) => i.canonical)).toEqual([
+      "Carrot",
+      "French beans",
+      "Chayote",
+    ]);
+  });
+
+  it("keeps ingredients the catalog is missing instead of dropping them", async () => {
+    const meals = await addDishesToMeal(USER, "2026-08-10", "lunch", [
+      { name: "Sambar", ingredients: ["Carrot", "tamarind"] },
+    ]);
+
+    const ingredients = meals[0].items[0].ingredients;
+    expect(ingredients.map((i) => i.canonical)).toEqual(["Carrot", "Tamarind"]);
+    expect(ingredients.map((i) => i.matched)).toEqual([true, false]);
+  });
+
+  it("leaves a dish logged without ingredients exactly as it works today", async () => {
+    const meals = await addDishesToMeal(USER, "2026-08-10", "lunch", [{ name: "Rice" }]);
+    expect(meals[0].items[0].ingredients).toEqual([]);
+  });
+});
+
+describe("offering back a dish she has made before", () => {
+  beforeEach(async () => {
+    await clearMealLogs(USER);
+  });
+
+  it("remembers how she made it last time", async () => {
+    await addDishesToMeal(USER, "2026-08-09", "lunch", [
+      { name: "Sambar", ingredients: ["Carrot", "beans", "chow chow"] },
+    ]);
+
+    const variants = await getDishVariants(USER, "sambar");
+    expect(variants).toHaveLength(1);
+    expect(variants[0].ingredients.map((i) => i.canonical)).toEqual([
+      "Carrot",
+      "French beans",
+      "Chayote",
+    ]);
+    expect(variants[0].timesLogged).toBe(1);
+  });
+
+  it("keeps a different set of vegetables as a separate version", async () => {
+    await addDishesToMeal(USER, "2026-08-08", "lunch", [
+      { name: "Sambar", ingredients: ["Carrot", "beans"] },
+    ]);
+    await addDishesToMeal(USER, "2026-08-09", "lunch", [
+      { name: "Sambar", ingredients: ["Drumstick", "Tomato"] },
+    ]);
+
+    const variants = await getDishVariants(USER, "Sambar");
+    expect(variants).toHaveLength(2);
+  });
+
+  it("puts the version she cooks most often first", async () => {
+    await addDishesToMeal(USER, "2026-08-07", "lunch", [
+      { name: "Sambar", ingredients: ["Drumstick"] },
+    ]);
+    await addDishesToMeal(USER, "2026-08-08", "lunch", [
+      { name: "Sambar", ingredients: ["Carrot", "beans"] },
+    ]);
+    await addDishesToMeal(USER, "2026-08-09", "lunch", [
+      { name: "Sambar", ingredients: ["beans", "Carrot"] },
+    ]);
+
+    const variants = await getDishVariants(USER, "sambar");
+    expect(variants[0].timesLogged).toBe(2);
+    // Added in a different order, but it is the same sambar.
+    expect(variants[0].ingredients.map((i) => i.canonical).sort()).toEqual([
+      "Carrot",
+      "French beans",
+    ]);
+  });
+
+  it("has nothing to offer for a dish logged without ingredients", async () => {
+    await addDishesToMeal(USER, "2026-08-09", "lunch", [{ name: "Sambar" }]);
+    expect(await getDishVariants(USER, "Sambar")).toEqual([]);
+  });
+
+  it("never offers another person's cooking", async () => {
+    await addDishesToMeal("user-other", "2026-08-09", "lunch", [
+      { name: "Sambar", ingredients: ["Carrot"] },
+    ]);
+    expect(await getDishVariants(USER, "Sambar")).toEqual([]);
+    await clearMealLogs("user-other");
+  });
+
+  it("returns nothing for a blank dish name", async () => {
+    expect(await getDishVariants(USER, "  ")).toEqual([]);
   });
 });
 

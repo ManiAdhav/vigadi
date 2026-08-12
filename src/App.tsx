@@ -209,6 +209,7 @@ export default function App() {
             <LogsView
               date={logDate}
               meals={dayMeals}
+              userId={userId}
               onDateChange={setLogDate}
               onSaveMeal={handleSaveMeal}
               onDeleteMeal={handleDeleteMeal}

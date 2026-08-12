@@ -1,6 +1,7 @@
 import { query, isDatabaseConfigured } from "./pool";
 import {
   createMealLogId,
+  DishVariant,
   MealLogEntry,
   MealLogItem,
   MealLogItemInput,
@@ -9,10 +10,15 @@ import {
   sortMealsByTime,
 } from "../../shared/mealLogs";
 import {
+  buildLoggedIngredientSignature,
+  parseLoggedIngredients,
+} from "../../shared/loggedIngredients";
+import {
   memoryAddDishesToMeal,
   memoryClearMealLogs,
   memoryDeleteMealLog,
   memoryDeleteMealLogItem,
+  memoryDishVariants,
   memoryGetMealLogsForDate,
 } from "./memoryStore";
 
@@ -27,6 +33,7 @@ interface MealLogItemRow {
   meal_log_id: string;
   dish_name: string;
   dish_id: number | null;
+  ingredients: unknown;
   calories: number | null;
   carbs: number | null;
   protein: number | null;
@@ -34,6 +41,7 @@ interface MealLogItemRow {
   image_url: string | null;
   review: string | null;
 }
+
 
 /**
  * pg returns a DATE column as a Date built in the server's timezone, which can
@@ -52,6 +60,7 @@ function toItem(row: MealLogItemRow): MealLogItem {
     id: Number(row.id),
     dishName: row.dish_name,
     dishId: row.dish_id,
+    ingredients: parseLoggedIngredients(row.ingredients),
     calories: row.calories,
     carbs: row.carbs,
     protein: row.protein,
@@ -133,13 +142,16 @@ export async function addDishesToMeal(
   for (const item of clean) {
     await query(
       `INSERT INTO meal_log_items
-         (meal_log_id, dish_name, dish_id, position, calories, carbs, protein, fat, image_url, review)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         (meal_log_id, dish_name, dish_id, position, ingredients, ingredient_signature,
+          calories, carbs, protein, fat, image_url, review)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)`,
       [
         mealLogId,
         item.name,
         item.dishId ?? null,
         position++,
+        JSON.stringify(item.ingredients),
+        item.ingredients.length ? buildLoggedIngredientSignature(item.ingredients) : null,
         item.calories ?? null,
         item.carbs ?? null,
         item.protein ?? null,
@@ -151,6 +163,54 @@ export async function addDishesToMeal(
   }
 
   return getMealLogsForDate(userId, date);
+}
+
+/**
+ * Her own past versions of a dish, most-used first, then most recent.
+ *
+ * Matching is on the dish name she is typing now, so "sambar" brings back every
+ * sambar she has recorded ingredients for — one tap to reuse, then free to edit.
+ * Versions with no ingredients are skipped: they have nothing to offer back.
+ */
+export async function getDishVariants(
+  userId: string,
+  dishName: string,
+  limit = 3
+): Promise<DishVariant[]> {
+  const name = dishName.trim();
+  if (!name) return [];
+  if (!isDatabaseConfigured()) return memoryDishVariants(userId, name, limit);
+
+  const result = await query<{
+    dish_name: string;
+    ingredients: unknown;
+    ingredient_signature: string;
+    times_logged: string | number;
+    last_logged_on: string | Date;
+  }>(
+    `SELECT MIN(i.dish_name) AS dish_name,
+            (ARRAY_AGG(i.ingredients ORDER BY l.logged_on DESC, i.id DESC))[1] AS ingredients,
+            i.ingredient_signature,
+            COUNT(*) AS times_logged,
+            MAX(l.logged_on) AS last_logged_on
+       FROM meal_log_items i
+       JOIN meal_logs l ON l.id = i.meal_log_id
+      WHERE l.user_id = $1
+        AND LOWER(i.dish_name) = LOWER($2)
+        AND i.ingredient_signature IS NOT NULL
+      GROUP BY i.ingredient_signature
+      ORDER BY times_logged DESC, last_logged_on DESC
+      LIMIT $3`,
+    [userId, name, limit]
+  );
+
+  return result.rows.map((row) => ({
+    dishName: row.dish_name,
+    ingredients: parseLoggedIngredients(row.ingredients),
+    signature: row.ingredient_signature,
+    timesLogged: Number(row.times_logged),
+    lastLoggedOn: rowDateToIso(row.last_logged_on),
+  }));
 }
 
 export async function deleteMealLog(userId: string, mealLogId: string): Promise<void> {

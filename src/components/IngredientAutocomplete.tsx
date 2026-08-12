@@ -4,15 +4,24 @@ import { searchIngredients } from "../../shared/ingredientSearch";
 import type { IngredientSearchResult } from "../../shared/ingredientCatalog";
 
 interface IngredientAutocompleteProps {
-  onSelect: (canonical: string) => void;
+  /** `raw` is what was typed; it differs from the canonical name for an unlisted ingredient. */
+  onSelect: (canonical: string, raw: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  /**
+   * Lets Enter commit an ingredient the catalog does not have. Logging what she
+   * actually cooked needs this — tamarind and coconut are not in the 110-item
+   * list, and refusing them would mean the sambar cannot be recorded properly.
+   * Off by default so the Kitchen keeps only catalog ingredients.
+   */
+  allowUnlisted?: boolean;
 }
 
 export default function IngredientAutocomplete({
   onSelect,
   placeholder = "Type vegetable name…",
   disabled = false,
+  allowUnlisted = false,
 }: IngredientAutocompleteProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<IngredientSearchResult[]>([]);
@@ -49,7 +58,18 @@ export default function IngredientAutocomplete({
   }, []);
 
   const pick = (item: IngredientSearchResult) => {
-    onSelect(item.canonical);
+    onSelect(item.canonical, query.trim() || item.canonical);
+    setQuery("");
+    setResults([]);
+    setOpen(false);
+    inputRef.current?.focus();
+  };
+
+  /** Commits exactly what was typed, for an ingredient the catalog has no entry for. */
+  const addTyped = () => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    onSelect(trimmed, trimmed);
     setQuery("");
     setResults([]);
     setOpen(false);
@@ -58,7 +78,10 @@ export default function IngredientAutocomplete({
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (!open || results.length === 0) {
-      if (e.key === "Enter") e.preventDefault();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (allowUnlisted) addTyped();
+      }
       return;
     }
     if (e.key === "ArrowDown") {
@@ -113,6 +136,12 @@ export default function IngredientAutocomplete({
             </li>
           ))}
         </ul>
+      )}
+
+      {allowUnlisted && query.trim() && results.length === 0 && (
+        <p className="mt-1.5 text-[10px] text-espresso/50">
+          Not in the list — press Enter to add &ldquo;{query.trim()}&rdquo; anyway
+        </p>
       )}
     </div>
   );
