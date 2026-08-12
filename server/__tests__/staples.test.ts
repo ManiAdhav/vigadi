@@ -26,16 +26,24 @@ const ingredientSlugs = new Set<string>(
   ).map((i) => i.id)
 );
 
-/** Dish names already in the shipped catalog, read straight from the CSV. */
+/**
+ * Dish names already in the shipped catalog. data/ is gitignored, so on a fresh
+ * clone this file is absent — the checks that need it skip rather than fail.
+ */
+const catalogCsv = path.join(process.cwd(), "data/vigadi-dishes-final.csv");
+const hasCatalogCsv = fs.existsSync(catalogCsv);
 const catalogNames = new Set<string>(
-  fs
-    .readFileSync(path.join(process.cwd(), "data/vigadi-dishes-final.csv"), "utf8")
-    .trim()
-    .split(/\r?\n/)
-    .slice(1)
-    .map((line) => line.split(",")[1]?.trim())
-    .filter(Boolean)
+  hasCatalogCsv
+    ? fs
+        .readFileSync(catalogCsv, "utf8")
+        .trim()
+        .split(/\r?\n/)
+        .slice(1)
+        .map((line) => line.split(",")[1]?.trim())
+        .filter((name): name is string => Boolean(name))
+    : []
 );
+const itWithCatalog = hasCatalogCsv ? it : it.skip;
 
 describe("STAPLE_DISHES", () => {
   it("covers the plain staples the catalog never generated", () => {
@@ -45,6 +53,13 @@ describe("STAPLE_DISHES", () => {
     expect(names).toContain("Dosa");
     expect(names).toContain("Vevicha Muttai");
     expect(names).toContain("Muttai Omelette");
+    expect(names).toContain("Thengai Chutney");
+  });
+
+  it("gives the chutney slot a default that is not tied to a vegetable", () => {
+    const chutney = STAPLE_DISHES.find((d) => d.name === "Thengai Chutney")!;
+    expect(chutney.ingredientSlug).toBe("coconut");
+    expect(chutney.nameAliases).toContain("Coconut Chutney");
   });
 
   it("hangs every staple off an ingredient that exists in the catalog", () => {
@@ -55,7 +70,7 @@ describe("STAPLE_DISHES", () => {
     }
   });
 
-  it("never duplicates a dish the catalog already ships", () => {
+  itWithCatalog("never duplicates a dish the catalog already ships", () => {
     for (const dish of STAPLE_DISHES) {
       expect(catalogNames, `${dish.name} is already in the catalog`).not.toContain(dish.name);
     }
@@ -95,7 +110,7 @@ describe("STAPLE_DISHES", () => {
 });
 
 describe("CATALOG_NAME_ALIASES", () => {
-  it("only aliases dishes that actually exist in the catalog", () => {
+  itWithCatalog("only aliases dishes that actually exist in the catalog", () => {
     for (const name of Object.keys(CATALOG_NAME_ALIASES)) {
       expect(catalogNames, `${name} is not a catalog dish`).toContain(name);
     }
@@ -108,7 +123,7 @@ describe("CATALOG_NAME_ALIASES", () => {
     expect(CATALOG_NAME_ALIASES["Paruppu Rasam"]).toContain("Rasam");
   });
 
-  it("has no alias that collides with a different dish's real name", () => {
+  itWithCatalog("has no alias that collides with a different dish's real name", () => {
     for (const [dish, aliases] of Object.entries(CATALOG_NAME_ALIASES)) {
       for (const alias of aliases) {
         if (alias === dish) continue;

@@ -105,7 +105,10 @@ async function main() {
     console.log(`Staples already there: ${alreadyThere}`);
     console.log(`Existing dishes aliased: ${aliased}`);
     if (missingIngredients.length > 0) {
-      console.warn(`\nSkipped — no such ingredient:\n  ${missingIngredients.join("\n  ")}`);
+      console.warn(
+        `\nSkipped — ingredient not in the DB yet:\n  ${missingIngredients.join("\n  ")}` +
+          `\n\nRun 'npm run seed:ingredients' first, then re-run this.`
+      );
     }
     if (unmatchedAliases.length > 0) {
       console.warn(`\nAlias target not found in DB:\n  ${unmatchedAliases.join("\n  ")}`);

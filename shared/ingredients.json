@@ -1274,5 +1274,19 @@
       "porikadalai maavu"
     ],
     "category": "flour"
+  },
+  {
+    "id": "coconut",
+    "canonical": "Coconut",
+    "tamil": "தேங்காய்",
+    "transliteration": "thengai",
+    "aliases": [
+      "thengaai",
+      "fresh coconut",
+      "grated coconut",
+      "coconut gratings",
+      "nariyal"
+    ],
+    "category": "other"
   }
 ]

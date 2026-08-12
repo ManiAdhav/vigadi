@@ -6,7 +6,9 @@ export type IngredientCategory =
   | "legume"
   | "herb"
   | "grain"
-  | "flour";
+  | "flour"
+  /** Condiments and everything the six cooking categories genuinely don't fit. */
+  | "other";
 
 export interface IngredientEntry {
   id: string;

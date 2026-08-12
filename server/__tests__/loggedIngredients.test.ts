@@ -22,7 +22,7 @@ describe("resolving a typed ingredient", () => {
   });
 
   it("keeps an ingredient the catalog does not have, exactly as typed", () => {
-    for (const missing of ["tamarind", "coconut", "sambar powder"]) {
+    for (const missing of ["tamarind", "jaggery", "sambar powder"]) {
       const resolved = resolveLoggedIngredient(missing);
       expect(resolved?.matched).toBe(false);
       expect(resolved?.raw).toBe(missing);
@@ -103,8 +103,8 @@ describe("reading back", () => {
   });
 
   it("reports which ingredients the catalog is missing", () => {
-    const list = cleanLoggedIngredients(["Carrot", "tamarind", "coconut"]);
-    expect(unmatchedIngredients(list)).toEqual(["Tamarind", "Coconut"]);
+    const list = cleanLoggedIngredients(["Carrot", "tamarind", "jaggery"]);
+    expect(unmatchedIngredients(list)).toEqual(["Tamarind", "Jaggery"]);
   });
 });
 
